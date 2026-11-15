@@ -20,9 +20,11 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { AiEngineeringDebriefPanel } from '../components/AiEngineeringDebriefPanel';
 import { FormulaInspectorModal } from '../components/FormulaInspectorModal';
 import { LeaderboardPanel } from '../components/LeaderboardPanel';
 import { getCompactConfigName } from '../data/displayNames';
+import type { AiMissionEvaluationReport } from '../types/aiEvaluation';
 import { getRecordedEoDatasetUsage } from '../services/planetaryComputerService';
 import { getRecordedWeatherUsage } from '../services/weatherService';
 import {
@@ -35,20 +37,25 @@ import { useSimulationStore } from '../store/simulationStore';
 export function MissionReport() {
   const navigate = useNavigate();
   const difficulty = useMissionStore((s) => s.difficulty);
+  const instrumentDutyOverrides = useMissionStore((s) => s.instrumentDutyOverrides);
+  const operationsPlan = useMissionStore((s) => s.operationsPlan);
   const userLaunchAuthorization = useMissionStore((s) => s.userLaunchAuthorization);
   const riskAcknowledged = useMissionStore((s) => s.riskAcknowledged);
   const resetMissionForNewAttempt = useMissionStore((s) => s.resetMissionForNewAttempt);
   const configSignature = useMissionStore(getMissionConfigSignature);
-  const { scenario, instruments, engineering, scorePreview } = useResolvedMission();
+  const { scenario, bus, subsystems, instruments, orbit, launchVehicle, engineering, scorePreview } =
+    useResolvedMission();
 
   const completedReport = useSimulationStore((s) => s.completedReport);
   const telemetryHistory = useSimulationStore((s) => s.telemetryHistory);
   const mappedRegionIds = useSimulationStore((s) => s.mappedRegionIds);
+  const finalSystemHealthPct = useSimulationStore((s) => s.currentTelemetry.systemHealthPct);
   const initializeSimulation = useSimulationStore((s) => s.initializeSimulation);
 
   const report = completedReport ?? scorePreview;
   const isLivePreview = completedReport === null;
   const [formulasOpen, setFormulasOpen] = useState(false);
+  const [aiEvaluation, setAiEvaluation] = useState<AiMissionEvaluationReport | null>(null);
   const externalEoUsage = getRecordedEoDatasetUsage();
   const externalWeatherUsage = getRecordedWeatherUsage();
 
@@ -170,11 +177,11 @@ export function MissionReport() {
               INSPECT EQUATIONS
             </button>
             <Link
-              to="/architecture"
+              to="/subsystems"
               className="gng-glass-pill flex items-center gap-1.5 border-[#F1F5FA]/20 px-4 py-2.5 text-xs font-semibold text-[#F1F5FA] transition hover:border-[#42D9F5]/60 hover:text-[#42D9F5]"
             >
               <Wrench className="h-3.5 w-3.5" aria-hidden="true" />
-              ADJUST ARCHITECTURE
+              ADJUST SUBSYSTEMS
             </Link>
             <button
               type="button"
@@ -497,6 +504,23 @@ export function MissionReport() {
         </div>
       )}
 
+      {/* NASA-Informed AI Engineering Debrief */}
+      <AiEngineeringDebriefPanel
+        completedReport={completedReport}
+        scenario={scenario}
+        difficulty={difficulty}
+        bus={bus}
+        instruments={instruments}
+        instrumentDutyOverrides={instrumentDutyOverrides}
+        subsystems={subsystems}
+        orbit={orbit}
+        launcher={launchVehicle}
+        operationsPlan={operationsPlan}
+        engineering={engineering}
+        finalSystemHealthPct={finalSystemHealthPct}
+        onEvaluationReady={setAiEvaluation}
+      />
+
       {/* Embedded International Leaderboard (Global / Country / Season) */}
       <LeaderboardPanel
         report={report}
@@ -506,6 +530,7 @@ export function MissionReport() {
         difficulty={difficulty}
         configSignature={configSignature}
         isLivePreview={isLivePreview}
+        aiEvaluation={aiEvaluation}
       />
 
       <FormulaInspectorModal

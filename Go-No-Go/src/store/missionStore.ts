@@ -13,6 +13,7 @@ import { evaluateMissionScore } from '../engine/scoring';
 import { evaluateMissionEngineering } from '../engine/validation';
 import { clearRecordedEoDatasetUsage } from '../services/planetaryComputerService';
 import { clearRecordedWeatherUsage } from '../services/weatherService';
+import type { OperationsPlanConfig } from '../types/aiEvaluation';
 import type { EngineeringSummary } from '../types/engineering';
 import type { MissionDifficulty, ScenarioDefinition } from '../types/mission';
 import type { MissionScoreReport } from '../types/simulation';
@@ -115,6 +116,8 @@ export interface MissionStoreState {
   customApogeeKm: number | null;
   customInclinationDeg: number | null;
   launchVehicleId: string;
+  instrumentDutyOverrides: Record<string, number>;
+  operationsPlan: OperationsPlanConfig;
   userLaunchAuthorization: LaunchAuthorizationStatus;
   riskAcknowledged: boolean;
 
@@ -125,6 +128,7 @@ export interface MissionStoreState {
   selectBus: (busId: string) => void;
   selectSubsystem: (category: Exclude<ComponentCategory, 'BUS'>, componentId: string) => void;
   toggleInstrument: (instrumentId: string) => void;
+  setInstrumentDutyCycle: (instrumentId: string, dutyCycle: number) => void;
   selectOrbit: (orbitId: string) => void;
   setCustomOrbitParams: (
     perigeeKm: number | null,
@@ -132,6 +136,7 @@ export interface MissionStoreState {
     apogeeKm?: number | null
   ) => void;
   selectLaunchVehicle: (launchVehicleId: string) => void;
+  setOperationsPlan: (patch: Partial<OperationsPlanConfig>) => void;
   authorizeLaunch: (riskAcknowledged?: boolean) => void;
   holdLaunch: () => void;
   applyPreset: (presetId: string) => void;
@@ -145,6 +150,7 @@ export type ResolveMissionInput = {
   busId: string;
   subsystemIds: Record<Exclude<ComponentCategory, 'BUS'>, string>;
   instrumentIds: string[];
+  instrumentDutyOverrides?: Record<string, number>;
   orbitId: string;
   customAltitudeKm?: number | null;
   customPerigeeKm?: number | null;
@@ -201,6 +207,14 @@ function isSameResolveInput(a: ResolveMissionInput, b: ResolveMissionInput): boo
       return false;
     }
   }
+  const dutyA = a.instrumentDutyOverrides ?? {};
+  const dutyB = b.instrumentDutyOverrides ?? {};
+  const dutyKeysA = Object.keys(dutyA);
+  const dutyKeysB = Object.keys(dutyB);
+  if (dutyKeysA.length !== dutyKeysB.length) return false;
+  for (const dk of dutyKeysA) {
+    if (dutyA[dk] !== dutyB[dk]) return false;
+  }
   return true;
 }
 
@@ -224,7 +238,11 @@ export function resolveMissionEntities(state: ResolveMissionInput): ResolvedMiss
 
   const instruments = state.instrumentIds
     .map((id) => SCIENTIFIC_INSTRUMENTS.find((inst) => inst.id === id))
-    .filter((inst): inst is ScientificInstrument => Boolean(inst));
+    .filter((inst): inst is ScientificInstrument => Boolean(inst))
+    .map((inst) => {
+      const override = state.instrumentDutyOverrides?.[inst.id];
+      return typeof override === 'number' ? { ...inst, defaultDutyCycle: override } : inst;
+    });
 
   const baseOrbit =
     ORBIT_CATALOG.find((o) => o.id === state.orbitId) ?? ORBIT_CATALOG[1];
@@ -289,6 +307,17 @@ export function resolveMissionEntities(state: ResolveMissionInput): ResolvedMiss
 }
 
 const defaultPreset = MISSION_PRESETS[0];
+const defaultScenario =
+  MISSION_SCENARIOS.find((s) => s.id === DEFAULT_SCENARIO_ID) ?? MISSION_SCENARIOS[0];
+
+const DEFAULT_OPERATIONS_PLAN: OperationsPlanConfig = {
+  missionDurationDays: defaultScenario.simulationDurationDays,
+  payloadDutyCyclePct: 45,
+  downlinkCadencePerDay: 4,
+  powerReservePct: 15,
+  attitudePriority: 'BALANCED',
+  observationSchedule: 'TARGET_WINDOWS',
+};
 
 export const useMissionStore = create<MissionStoreState>()((set, get) => ({
   configurationName: 'GNG-Baseline Spacecraft Config',
@@ -297,12 +326,14 @@ export const useMissionStore = create<MissionStoreState>()((set, get) => ({
   busId: defaultPreset.busId,
   subsystemIds: { ...defaultPreset.subsystemIds },
   instrumentIds: [...defaultPreset.instrumentIds],
+  instrumentDutyOverrides: {},
   orbitId: defaultPreset.orbitId,
   customAltitudeKm: null,
   customPerigeeKm: null,
   customApogeeKm: null,
   customInclinationDeg: null,
   launchVehicleId: defaultPreset.launchVehicleId,
+  operationsPlan: { ...DEFAULT_OPERATIONS_PLAN },
   userLaunchAuthorization: 'PENDING',
   riskAcknowledged: false,
 
@@ -321,6 +352,10 @@ export const useMissionStore = create<MissionStoreState>()((set, get) => ({
       customPerigeeKm: null,
       customApogeeKm: null,
       customInclinationDeg: null,
+      operationsPlan: {
+        ...get().operationsPlan,
+        missionDurationDays: scenario.simulationDurationDays,
+      },
       userLaunchAuthorization: 'PENDING',
       riskAcknowledged: false,
     });
@@ -356,6 +391,16 @@ export const useMissionStore = create<MissionStoreState>()((set, get) => ({
       };
     }),
 
+  setInstrumentDutyCycle: (instrumentId, dutyCycle) =>
+    set((state) => ({
+      instrumentDutyOverrides: {
+        ...state.instrumentDutyOverrides,
+        [instrumentId]: Math.max(0.05, Math.min(1, Number(dutyCycle.toFixed(2)))),
+      },
+      userLaunchAuthorization: 'PENDING',
+      riskAcknowledged: false,
+    })),
+
   selectOrbit: (orbitId) =>
     set({
       orbitId,
@@ -379,6 +424,13 @@ export const useMissionStore = create<MissionStoreState>()((set, get) => ({
 
   selectLaunchVehicle: (launchVehicleId) =>
     set({ launchVehicleId, userLaunchAuthorization: 'PENDING', riskAcknowledged: false }),
+
+  setOperationsPlan: (patch) =>
+    set((state) => ({
+      operationsPlan: { ...state.operationsPlan, ...patch },
+      userLaunchAuthorization: 'PENDING',
+      riskAcknowledged: false,
+    })),
 
   authorizeLaunch: (riskAcknowledged = false) =>
     set({
@@ -422,12 +474,14 @@ export const useMissionStore = create<MissionStoreState>()((set, get) => ({
       busId: defaultPreset.busId,
       subsystemIds: { ...defaultPreset.subsystemIds },
       instrumentIds: [...defaultPreset.instrumentIds],
+      instrumentDutyOverrides: {},
       orbitId: defaultPreset.orbitId,
       customAltitudeKm: null,
       customPerigeeKm: null,
       customApogeeKm: null,
       customInclinationDeg: null,
       launchVehicleId: defaultPreset.launchVehicleId,
+      operationsPlan: { ...DEFAULT_OPERATIONS_PLAN },
       userLaunchAuthorization: 'PENDING',
       riskAcknowledged: false,
     });
@@ -464,6 +518,7 @@ export function useResolvedMission(): ResolvedMissionEntities {
       busId: s.busId,
       subsystemIds: s.subsystemIds,
       instrumentIds: s.instrumentIds,
+      instrumentDutyOverrides: s.instrumentDutyOverrides,
       orbitId: s.orbitId,
       customAltitudeKm: s.customAltitudeKm,
       customPerigeeKm: s.customPerigeeKm,

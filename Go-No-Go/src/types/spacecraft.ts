@@ -12,10 +12,15 @@ export type ComponentCategory =
 export type InstrumentType =
   | 'OPTICAL'
   | 'MULTISPECTRAL'
+  | 'HYPERSPECTRAL'
   | 'THERMAL_IR'
   | 'SAR'
   | 'ALTIMETER'
-  | 'SPECTROMETER';
+  | 'SPECTROMETER'
+  | 'MAGNETOMETER'
+  | 'RADIATION_DETECTOR'
+  | 'ATMOSPHERIC_SENSOR'
+  | 'COMMS_EXPERIMENT';
 
 export type RFBand = 'UHF' | 'S_BAND' | 'X_BAND' | 'KA_BAND';
 

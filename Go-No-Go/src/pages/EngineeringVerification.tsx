@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   AlertTriangle,
+  ArrowLeft,
   Calculator,
   PauseCircle,
   Rocket,
@@ -89,7 +90,7 @@ export function EngineeringVerification() {
               <ShieldCheck className="h-4 w-4 text-[#38D996]" aria-hidden="true" />
             )}
             <span className="font-mono-tech text-[11px] font-semibold uppercase tracking-widest text-[#42D9F5]">
-              Stage 04 · Engineering Verification &amp; Final Launch Decision — {scenario.code}
+              Stage 06 · Engineering Verification &amp; Final Launch Decision — {scenario.code}
             </span>
           </div>
           <h1 className="font-display text-2xl font-bold text-[#F1F5FA]">
@@ -105,14 +106,24 @@ export function EngineeringVerification() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setInspectOpen(true)}
-          className="gng-glass-slice flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#F1F5FA] transition hover:border-[#42D9F5]/60 hover:text-[#42D9F5]"
-        >
-          <Calculator className="h-3.5 w-3.5 text-[#42D9F5]" aria-hidden="true" />
-          INSPECT SI EQUATIONS
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('/operations-plan')}
+            className="gng-glass-slice flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#F1F5FA] transition hover:border-[#42D9F5]/60 hover:text-[#42D9F5]"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            Operations Plan
+          </button>
+          <button
+            type="button"
+            onClick={() => setInspectOpen(true)}
+            className="gng-glass-slice flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#F1F5FA] transition hover:border-[#42D9F5]/60 hover:text-[#42D9F5]"
+          >
+            <Calculator className="h-3.5 w-3.5 text-[#42D9F5]" aria-hidden="true" />
+            INSPECT SI EQUATIONS
+          </button>
+        </div>
       </div>
 
       {/* Verification Dashboard (advisory findings & numerical margins) */}

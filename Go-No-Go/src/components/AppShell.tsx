@@ -13,22 +13,24 @@ interface StageLink {
 }
 
 const MISSION_STAGES: StageLink[] = [
-  { number: '01', to: '/', label: 'Briefing', matchPaths: ['/', '/briefing'] },
+  { number: '01', to: '/', label: 'Briefing & Bus', matchPaths: ['/', '/briefing'] },
+  { number: '02', to: '/payloads', label: 'Payloads', matchPaths: ['/payloads'] },
   {
-    number: '02',
-    to: '/architecture',
-    label: 'Architecture',
-    matchPaths: ['/architecture', '/builder'],
+    number: '03',
+    to: '/subsystems',
+    label: 'Subsystems',
+    matchPaths: ['/subsystems', '/architecture', '/builder'],
   },
-  { number: '03', to: '/orbit', label: 'Orbit & Launch', matchPaths: ['/orbit'] },
-  { number: '04', to: '/verification', label: 'Verification', matchPaths: ['/verification'] },
+  { number: '04', to: '/orbit', label: 'Orbit & Launch', matchPaths: ['/orbit'] },
+  { number: '05', to: '/operations-plan', label: 'Ops Plan', matchPaths: ['/operations-plan'] },
+  { number: '06', to: '/verification', label: 'Verification', matchPaths: ['/verification'] },
   {
-    number: '05',
+    number: '07',
     to: '/operations',
     label: 'Operations',
     matchPaths: ['/operations', '/simulation'],
   },
-  { number: '06', to: '/debrief', label: 'Debrief', matchPaths: ['/debrief', '/report'] },
+  { number: '08', to: '/debrief', label: 'Debrief', matchPaths: ['/debrief', '/report'] },
 ];
 
 const GATE_BADGE_CLASS: Record<GateStatus, string> = {

@@ -1,11 +1,10 @@
 import { Link } from 'react-router';
-import { ArrowRight, CheckCircle2, Compass, Rocket, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Compass, Rocket, XCircle } from 'lucide-react';
 import { LAUNCH_VEHICLES } from '../data/launchVehicles';
 import { getLaunchCapacityForRegimeKg } from '../engine/mass';
 import { EarthScene } from '../scenes/EarthScene';
 import { useMissionStore, useResolvedMission } from '../store/missionStore';
 import { OrbitSelector } from '../components/OrbitSelector';
-import { ResourcePanel } from '../components/ResourcePanel';
 import { TechTerm } from '../components/TechTerm';
 
 export function OrbitPlanner() {
@@ -39,18 +38,74 @@ export function OrbitPlanner() {
           </p>
         </div>
 
-        <Link
-          to="/verification"
-          className="flex items-center gap-2 rounded-md border border-cyan-300/60 bg-[#42D9F5] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#080B12] transition hover:bg-[#42D9F5]/90"
-        >
-          ENGINEERING VERIFICATION
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/subsystems"
+            className="gng-glass-slice flex items-center gap-1.5 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-[#F1F5FA] transition hover:border-[#42D9F5]/60 hover:text-[#42D9F5]"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            Subsystems
+          </Link>
+          <Link
+            to="/operations-plan"
+            className="flex items-center gap-2 rounded-md border border-cyan-300/60 bg-[#42D9F5] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#080B12] transition hover:bg-[#42D9F5]/90"
+          >
+            OPERATIONS PLAN
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
       </div>
 
-      {/* Main Split: Orbit + Launcher Controls (Left) | 3D Globe + Budgets (Right) */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-        <div className="flex flex-col gap-5 lg:col-span-7">
+      {/* Central 3D Orbital Visualization + Compact Inline Metrics (No Sidebar) */}
+      <div className="gng-glass-panel overflow-hidden p-3">
+        <EarthScene
+          celestialBody={orbit.celestialBody}
+          orbit={orbit}
+          periodSeconds={engineering.orbital.orbitalPeriodSec}
+          swathWidthKm={maxSwathKm}
+          targetRegions={
+            orbit.celestialBody === scenario.celestialBody ? scenario.targetRegions : []
+          }
+          showGroundStations={orbit.celestialBody === 'EARTH'}
+          showSwathCone={true}
+          showMoonInBackground={orbit.celestialBody === 'EARTH'}
+          heightClass="h-[320px]"
+        />
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-2.5 font-mono-tech text-xs">
+          <span>
+            <span className="text-[#8E9BAD]">Wet Mass: </span>
+            <span className="font-bold text-[#F1F5FA]">
+              {engineering.mass.wetMassKg.toFixed(1)} / {engineering.mass.maxLaunchMassKg.toFixed(0)} kg
+            </span>
+          </span>
+          <span>
+            <span className="text-[#8E9BAD]">Eclipse: </span>
+            <span className="font-bold text-cyan-300">
+              {(engineering.orbital.eclipseFraction * 100).toFixed(1)}%
+            </span>
+          </span>
+          <span>
+            <span className="text-[#8E9BAD]">Revisit: </span>
+            <span className="font-bold text-[#F1F5FA]">{engineering.orbital.revisitHours} hr</span>
+          </span>
+          <span>
+            <span className="text-[#8E9BAD]">Delta-V Margin: </span>
+            <span className="font-bold text-emerald-300">
+              {engineering.propulsion.deltaVMarginPct.toFixed(1)}%
+            </span>
+          </span>
+          <span>
+            <span className="text-[#8E9BAD]">Cost: </span>
+            <span className="font-bold text-[#F1F5FA]">
+              ${engineering.budget.totalSpentMusd.toFixed(1)}M / ${scenario.budgetCapMusd.toFixed(1)}M
+            </span>
+          </span>
+        </div>
+      </div>
+
+      {/* Full-Width Orbit + Launcher Controls (Sidebar-Free) */}
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-5">
           <div className="gng-glass-panel space-y-3 p-4">
             <h2 className="font-mono-tech text-xs font-semibold uppercase tracking-wider text-[#F1F5FA]">
               Orbital Regime & Custom Keplerian Tuning
@@ -150,23 +205,24 @@ export function OrbitPlanner() {
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="flex flex-col gap-4 lg:col-span-5">
-          <EarthScene
-            celestialBody={orbit.celestialBody}
-            orbit={orbit}
-            periodSeconds={engineering.orbital.orbitalPeriodSec}
-            swathWidthKm={maxSwathKm}
-            targetRegions={
-              orbit.celestialBody === scenario.celestialBody ? scenario.targetRegions : []
-            }
-            showGroundStations={orbit.celestialBody === 'EARTH'}
-            showSwathCone={true}
-            showMoonInBackground={orbit.celestialBody === 'EARTH'}
-            heightClass="h-[360px]"
-          />
-          <ResourcePanel engineering={engineering} budgetCapMusd={scenario.budgetCapMusd} />
-        </div>
+      {/* Sequential Navigation */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+        <Link
+          to="/subsystems"
+          className="gng-glass-slice flex items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[#F1F5FA] transition hover:border-[#42D9F5]/60 hover:text-[#42D9F5]"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Previous: Subsystems
+        </Link>
+        <Link
+          to="/operations-plan"
+          className="flex items-center gap-2 rounded-md border border-cyan-300/60 bg-[#42D9F5] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#080B12] transition hover:bg-[#42D9F5]/90"
+        >
+          Continue to Operations Plan
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
       </div>
     </div>
   );

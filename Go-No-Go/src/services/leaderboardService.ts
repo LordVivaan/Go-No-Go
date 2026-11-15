@@ -332,6 +332,12 @@ export async function submitVerifiedMissionScore(params: {
   seasonCode?: string;
   configurationName: string;
   telemetry: LeaderboardVerificationTelemetry;
+  evaluationMetadata?: {
+    evaluationId: string;
+    evaluationVersion: string;
+    evaluationModel: string;
+    snapshotHash: string;
+  };
 }): Promise<LeaderboardSubmissionResult> {
   const seasonCode = (params.seasonCode ?? CURRENT_SEASON_CODE).trim().toUpperCase();
   const normalizedCountry =
@@ -425,10 +431,32 @@ export async function submitVerifiedMissionScore(params: {
         ? payload.verificationStatus
         : 'PROVISIONAL';
 
+    const entryId = typeof payload.entryId === 'string' ? payload.entryId : undefined;
+
+    if (entryId && params.evaluationMetadata) {
+      try {
+        await (
+          supabaseClient.rpc as unknown as (
+            fn: string,
+            args: Record<string, unknown>,
+          ) => Promise<unknown>
+        )('attach_ai_evaluation_metadata', {
+          p_entry_id: entryId,
+          p_player_token: identity.playerToken,
+          p_evaluation_id: params.evaluationMetadata.evaluationId,
+          p_evaluation_version: params.evaluationMetadata.evaluationVersion,
+          p_evaluation_model: params.evaluationMetadata.evaluationModel,
+          p_snapshot_hash: params.evaluationMetadata.snapshotHash,
+        });
+      } catch {
+        // Non-blocking: older database schemas without the metadata migration remain supported.
+      }
+    }
+
     return {
       ok: true,
       authWarning,
-      entryId: typeof payload.entryId === 'string' ? payload.entryId : undefined,
+      entryId,
       verifiedScore:
         typeof payload.verifiedScore === 'number' ? payload.verifiedScore : undefined,
       bestScore: typeof payload.bestScore === 'number' ? payload.bestScore : undefined,
@@ -593,4 +621,36 @@ export async function fetchMissionLeaderboard(
       errorMessage: formatLeaderboardRpcError(rawMessage),
     };
   }
+}
+
+/**
+ * Applies standard competition ranking (1, 2, 2, 4) by totalScore descending,
+ * ordering tied scores by earliest achievedAtIso ascending then id ascending.
+ */
+export function applyCompetitionTieRanking<
+  T extends { id: string; totalScore: number; achievedAtIso: string; rank?: number },
+>(entries: readonly T[]): Array<T & { rank: number }> {
+  const sorted = [...entries].sort((a, b) => {
+    const scoreA = Math.round(a.totalScore * 10);
+    const scoreB = Math.round(b.totalScore * 10);
+    if (scoreB !== scoreA) return scoreB - scoreA;
+    const timeA = Date.parse(a.achievedAtIso) || 0;
+    const timeB = Date.parse(b.achievedAtIso) || 0;
+    if (timeA !== timeB) return timeA - timeB;
+    return a.id.localeCompare(b.id);
+  });
+
+  let currentRank = 0;
+  let lastRoundedScore: number | null = null;
+  return sorted.map((entry, idx) => {
+    const rounded = Math.round(entry.totalScore * 10);
+    if (lastRoundedScore === null || rounded !== lastRoundedScore) {
+      currentRank = idx + 1;
+      lastRoundedScore = rounded;
+    }
+    return {
+      ...entry,
+      rank: currentRank,
+    };
+  });
 }

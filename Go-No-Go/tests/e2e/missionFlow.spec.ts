@@ -24,6 +24,49 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
       }
     });
 
+    await page.route('**/api/evaluate-mission', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          report: {
+            evaluationId: 'eval_e2e_mock',
+            evaluationVersion: '2026.11-v1',
+            model: 'gpt-4.1-mini',
+            snapshotHash: 'e2e-hash-001',
+            overallScore: 86.5,
+            outcome: 'SUCCESS',
+            executiveSummary: 'E2E mocked NASA-informed evaluation summary.',
+            categories: {
+              science: { weight: 35, score: 88, weightedPoints: 30.8, strengths: ['Objective met'], deductions: [] },
+              reliability: { weight: 25, score: 90, weightedPoints: 22.5, strengths: ['High reliability'], deductions: [] },
+              resource_efficiency: { weight: 15, score: 84, weightedPoints: 12.6, strengths: ['Balanced margins'], deductions: [] },
+              data_comms: { weight: 15, score: 85, weightedPoints: 12.75, strengths: ['Positive link margin'], deductions: [] },
+              risk_management: { weight: 10, score: 78.5, weightedPoints: 7.85, strengths: ['ODAR compliant'], deductions: [] },
+            },
+            criticalFailures: [],
+            minorFindings: [],
+            engineeringRecommendations: [],
+            nasaReferences: [
+              {
+                code: 'NASA/SP-2016-6105 Rev2',
+                title: 'NASA Systems Engineering Handbook',
+                version: 'Rev 2',
+                url: 'https://www.nasa.gov/reference/systems-engineering-handbook/',
+                basis: 'NASA_HANDBOOK_GUIDANCE',
+                relevance: 'Verification and margin guidance.',
+              },
+            ],
+            missionSuccesses: ['Mission completed'],
+            missionLimitations: [],
+            evaluatedAtIso: new Date().toISOString(),
+            cached: false,
+          },
+        }),
+      });
+    });
+
     await page.route('**/rest/v1/rpc/get_mission_leaderboard', async (route) => {
       await route.fulfill({
         status: 200,
@@ -60,16 +103,19 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
 
     await page.screenshot({ path: '/tmp/gng-e2e-stage1-briefing.png' });
 
-    // Stage 2 — Mission Architecture (uses Engineering Planning Sheets, allows free experimentation)
-    await page.getByRole('button', { name: /Start Mission Architecture/i }).click();
-    await expect(page).toHaveURL(/\/architecture/);
+    // Stage 2 — Payload Selection -> Stage 3 — Subsystems (no sidebars)
+    await page.getByRole('button', { name: /Continue to Payload Selection/i }).click();
+    await expect(page).toHaveURL(/\/payloads/);
+    await expect(page.locator('aside')).toHaveCount(0);
+    await page.getByRole('button', { name: /Continue to Subsystems/i }).click();
+    await expect(page).toHaveURL(/\/subsystems/);
     await expect(page.getByTestId('architecture-planning-sheet')).toBeVisible();
     await expect(page.getByRole('button', { name: /Save Config/i })).toHaveCount(0);
 
     await page.getByRole('button', { name: /6U CubeSat Optical Scout/i }).click();
     await expect(page.getByTestId('shell-gate-status')).toContainText('ENG: NO-GO');
 
-    // Stage 3 — Orbit & Launch Planning
+    // Stage 4 — Orbit & Launch Planning
     await page.getByRole('link', { name: /^ORBIT & LAUNCH$/i }).click();
     await expect(page).toHaveURL(/\/orbit/);
     await expect(page.getByLabel(/Perigee orbital altitude in kilometers/i)).toBeVisible();
@@ -81,10 +127,10 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
     await page.getByRole('button', { name: /100 km Lunar Polar/i }).click();
     await expect(page.getByTestId('earth-scene')).toHaveAttribute('data-primary-body', 'MOON');
 
-    // Navigating directly to Stage 5 before user authorization prompts for Stage 4 launch decision
+    // Navigating directly to Stage 7 before user authorization prompts for Stage 6 launch decision
     await page
       .locator('nav[aria-label="Mission Gameplay Stages"]')
-      .getByRole('link', { name: /05.*Operations/i })
+      .getByRole('link', { name: /07.*Operations/i })
       .click();
     await expect(page).toHaveURL(/\/operations/);
     await expect(page.getByText(/AWAITING MISSION DIRECTOR LAUNCH AUTHORIZATION/i)).toBeVisible();
@@ -98,17 +144,17 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
     await expect(page.getByText(/Acknowledge Critical Flight Risks Before Launch/i)).toBeVisible();
     await page.getByRole('button', { name: /Cancel & Review Design/i }).click();
 
-    // Recover spacecraft via Stage 2 Baseline GO preset
+    // Recover spacecraft via Stage 3 Subsystems Baseline GO preset
     await page
       .locator('nav[aria-label="Mission Gameplay Stages"]')
-      .getByRole('link', { name: /02.*Architecture/i })
+      .getByRole('link', { name: /03.*Subsystems/i })
       .click();
-    await expect(page).toHaveURL(/\/architecture/);
+    await expect(page).toHaveURL(/\/subsystems/);
     await page.getByRole('button', { name: /Lunar Scout Polar Baseline/i }).click();
     await expect(page.getByTestId('shell-gate-status')).toContainText('ENG: GO');
 
     // Return to Stage 4 -> Authorize Launch -> Full-Screen Launch Sequence -> Auto-Start Operations
-    await page.getByRole('link', { name: /04.*Verification/i }).click();
+    await page.getByRole('link', { name: /06.*Verification/i }).click();
     await expect(page).toHaveURL(/\/verification/);
     await page.screenshot({ path: '/tmp/gng-e2e-stage4-verification.png' });
 
@@ -151,6 +197,49 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
       { name: 'mobile', width: 390, height: 844 },
     ];
 
+    await page.route('**/api/evaluate-mission', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          report: {
+            evaluationId: 'eval_e2e_mock',
+            evaluationVersion: '2026.11-v1',
+            model: 'gpt-4.1-mini',
+            snapshotHash: 'e2e-hash-001',
+            overallScore: 86.5,
+            outcome: 'SUCCESS',
+            executiveSummary: 'E2E mocked NASA-informed evaluation summary.',
+            categories: {
+              science: { weight: 35, score: 88, weightedPoints: 30.8, strengths: ['Objective met'], deductions: [] },
+              reliability: { weight: 25, score: 90, weightedPoints: 22.5, strengths: ['High reliability'], deductions: [] },
+              resource_efficiency: { weight: 15, score: 84, weightedPoints: 12.6, strengths: ['Balanced margins'], deductions: [] },
+              data_comms: { weight: 15, score: 85, weightedPoints: 12.75, strengths: ['Positive link margin'], deductions: [] },
+              risk_management: { weight: 10, score: 78.5, weightedPoints: 7.85, strengths: ['ODAR compliant'], deductions: [] },
+            },
+            criticalFailures: [],
+            minorFindings: [],
+            engineeringRecommendations: [],
+            nasaReferences: [
+              {
+                code: 'NASA/SP-2016-6105 Rev2',
+                title: 'NASA Systems Engineering Handbook',
+                version: 'Rev 2',
+                url: 'https://www.nasa.gov/reference/systems-engineering-handbook/',
+                basis: 'NASA_HANDBOOK_GUIDANCE',
+                relevance: 'Verification and margin guidance.',
+              },
+            ],
+            missionSuccesses: ['Mission completed'],
+            missionLimitations: [],
+            evaluatedAtIso: new Date().toISOString(),
+            cached: false,
+          },
+        }),
+      });
+    });
+
     await page.route('**/rest/v1/rpc/get_mission_leaderboard', async (route) => {
       await route.fulfill({
         status: 200,
@@ -168,9 +257,9 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.goto('/');
 
-      // Exactly 6 nav stage links & zero legacy <aside>
+      // Exactly 8 nav stage links & zero legacy <aside>
       await expect(page.locator('aside')).toHaveCount(0);
-      await expect(page.locator('nav[aria-label="Mission Gameplay Stages"] a')).toHaveCount(6);
+      await expect(page.locator('nav[aria-label="Mission Gameplay Stages"] a')).toHaveCount(8);
 
       // Earth & Moon 3D canvas visible without overflow
       await expect(page.locator('canvas').first()).toBeVisible();
@@ -290,7 +379,7 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
     // Stage 4 -> Stage 5 -> Stage 6 Debrief provenance (Lunar mission does NOT show Earth EO button in Operations)
     await page
       .locator('nav[aria-label="Mission Gameplay Stages"]')
-      .getByRole('link', { name: /04.*Verification/i })
+      .getByRole('link', { name: /06.*Verification/i })
       .click();
     await expect(page).toHaveURL(/\/verification/);
     await page.getByRole('button', { name: /GO — Authorize Launch/i }).click();
@@ -421,7 +510,7 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
     // Stage 4 -> Stage 5 -> Stage 6 Debrief provenance (Lunar operations must NOT display terrestrial weather)
     await page
       .locator('nav[aria-label="Mission Gameplay Stages"]')
-      .getByRole('link', { name: /04.*Verification/i })
+      .getByRole('link', { name: /06.*Verification/i })
       .click();
     await expect(page).toHaveURL(/\/verification/);
     await page.getByRole('button', { name: /GO — Authorize Launch/i }).click();
@@ -441,6 +530,49 @@ test.describe('Leaderboard States & Supabase RPC Mocking', () => {
   test('renders populated PROVISIONAL and VERIFIED standings from mocked RPC response', async ({
     page,
   }) => {
+    await page.route('**/api/evaluate-mission', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          report: {
+            evaluationId: 'eval_e2e_mock',
+            evaluationVersion: '2026.11-v1',
+            model: 'gpt-4.1-mini',
+            snapshotHash: 'e2e-hash-001',
+            overallScore: 86.5,
+            outcome: 'SUCCESS',
+            executiveSummary: 'E2E mocked NASA-informed evaluation summary.',
+            categories: {
+              science: { weight: 35, score: 88, weightedPoints: 30.8, strengths: ['Objective met'], deductions: [] },
+              reliability: { weight: 25, score: 90, weightedPoints: 22.5, strengths: ['High reliability'], deductions: [] },
+              resource_efficiency: { weight: 15, score: 84, weightedPoints: 12.6, strengths: ['Balanced margins'], deductions: [] },
+              data_comms: { weight: 15, score: 85, weightedPoints: 12.75, strengths: ['Positive link margin'], deductions: [] },
+              risk_management: { weight: 10, score: 78.5, weightedPoints: 7.85, strengths: ['ODAR compliant'], deductions: [] },
+            },
+            criticalFailures: [],
+            minorFindings: [],
+            engineeringRecommendations: [],
+            nasaReferences: [
+              {
+                code: 'NASA/SP-2016-6105 Rev2',
+                title: 'NASA Systems Engineering Handbook',
+                version: 'Rev 2',
+                url: 'https://www.nasa.gov/reference/systems-engineering-handbook/',
+                basis: 'NASA_HANDBOOK_GUIDANCE',
+                relevance: 'Verification and margin guidance.',
+              },
+            ],
+            missionSuccesses: ['Mission completed'],
+            missionLimitations: [],
+            evaluatedAtIso: new Date().toISOString(),
+            cached: false,
+          },
+        }),
+      });
+    });
+
     await page.route('**/rest/v1/rpc/get_mission_leaderboard', async (route) => {
       await route.fulfill({
         status: 200,
@@ -511,6 +643,49 @@ test.describe('Leaderboard States & Supabase RPC Mocking', () => {
   });
 
   test('renders empty standings when mocked RPC returns zero entries', async ({ page }) => {
+    await page.route('**/api/evaluate-mission', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          report: {
+            evaluationId: 'eval_e2e_mock',
+            evaluationVersion: '2026.11-v1',
+            model: 'gpt-4.1-mini',
+            snapshotHash: 'e2e-hash-001',
+            overallScore: 86.5,
+            outcome: 'SUCCESS',
+            executiveSummary: 'E2E mocked NASA-informed evaluation summary.',
+            categories: {
+              science: { weight: 35, score: 88, weightedPoints: 30.8, strengths: ['Objective met'], deductions: [] },
+              reliability: { weight: 25, score: 90, weightedPoints: 22.5, strengths: ['High reliability'], deductions: [] },
+              resource_efficiency: { weight: 15, score: 84, weightedPoints: 12.6, strengths: ['Balanced margins'], deductions: [] },
+              data_comms: { weight: 15, score: 85, weightedPoints: 12.75, strengths: ['Positive link margin'], deductions: [] },
+              risk_management: { weight: 10, score: 78.5, weightedPoints: 7.85, strengths: ['ODAR compliant'], deductions: [] },
+            },
+            criticalFailures: [],
+            minorFindings: [],
+            engineeringRecommendations: [],
+            nasaReferences: [
+              {
+                code: 'NASA/SP-2016-6105 Rev2',
+                title: 'NASA Systems Engineering Handbook',
+                version: 'Rev 2',
+                url: 'https://www.nasa.gov/reference/systems-engineering-handbook/',
+                basis: 'NASA_HANDBOOK_GUIDANCE',
+                relevance: 'Verification and margin guidance.',
+              },
+            ],
+            missionSuccesses: ['Mission completed'],
+            missionLimitations: [],
+            evaluatedAtIso: new Date().toISOString(),
+            cached: false,
+          },
+        }),
+      });
+    });
+
     await page.route('**/rest/v1/rpc/get_mission_leaderboard', async (route) => {
       await route.fulfill({
         status: 200,
@@ -531,6 +706,49 @@ test.describe('Leaderboard States & Supabase RPC Mocking', () => {
   test('renders concise RPC error with expandable technical details on PGRST202 schema cache failure', async ({
     page,
   }) => {
+    await page.route('**/api/evaluate-mission', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          report: {
+            evaluationId: 'eval_e2e_mock',
+            evaluationVersion: '2026.11-v1',
+            model: 'gpt-4.1-mini',
+            snapshotHash: 'e2e-hash-001',
+            overallScore: 86.5,
+            outcome: 'SUCCESS',
+            executiveSummary: 'E2E mocked NASA-informed evaluation summary.',
+            categories: {
+              science: { weight: 35, score: 88, weightedPoints: 30.8, strengths: ['Objective met'], deductions: [] },
+              reliability: { weight: 25, score: 90, weightedPoints: 22.5, strengths: ['High reliability'], deductions: [] },
+              resource_efficiency: { weight: 15, score: 84, weightedPoints: 12.6, strengths: ['Balanced margins'], deductions: [] },
+              data_comms: { weight: 15, score: 85, weightedPoints: 12.75, strengths: ['Positive link margin'], deductions: [] },
+              risk_management: { weight: 10, score: 78.5, weightedPoints: 7.85, strengths: ['ODAR compliant'], deductions: [] },
+            },
+            criticalFailures: [],
+            minorFindings: [],
+            engineeringRecommendations: [],
+            nasaReferences: [
+              {
+                code: 'NASA/SP-2016-6105 Rev2',
+                title: 'NASA Systems Engineering Handbook',
+                version: 'Rev 2',
+                url: 'https://www.nasa.gov/reference/systems-engineering-handbook/',
+                basis: 'NASA_HANDBOOK_GUIDANCE',
+                relevance: 'Verification and margin guidance.',
+              },
+            ],
+            missionSuccesses: ['Mission completed'],
+            missionLimitations: [],
+            evaluatedAtIso: new Date().toISOString(),
+            cached: false,
+          },
+        }),
+      });
+    });
+
     await page.route('**/rest/v1/rpc/get_mission_leaderboard', async (route) => {
       await route.fulfill({
         status: 404,
@@ -556,6 +774,49 @@ test.describe('Leaderboard States & Supabase RPC Mocking', () => {
   test('renders temporary connection error when leaderboard network request fails', async ({
     page,
   }) => {
+    await page.route('**/api/evaluate-mission', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          report: {
+            evaluationId: 'eval_e2e_mock',
+            evaluationVersion: '2026.11-v1',
+            model: 'gpt-4.1-mini',
+            snapshotHash: 'e2e-hash-001',
+            overallScore: 86.5,
+            outcome: 'SUCCESS',
+            executiveSummary: 'E2E mocked NASA-informed evaluation summary.',
+            categories: {
+              science: { weight: 35, score: 88, weightedPoints: 30.8, strengths: ['Objective met'], deductions: [] },
+              reliability: { weight: 25, score: 90, weightedPoints: 22.5, strengths: ['High reliability'], deductions: [] },
+              resource_efficiency: { weight: 15, score: 84, weightedPoints: 12.6, strengths: ['Balanced margins'], deductions: [] },
+              data_comms: { weight: 15, score: 85, weightedPoints: 12.75, strengths: ['Positive link margin'], deductions: [] },
+              risk_management: { weight: 10, score: 78.5, weightedPoints: 7.85, strengths: ['ODAR compliant'], deductions: [] },
+            },
+            criticalFailures: [],
+            minorFindings: [],
+            engineeringRecommendations: [],
+            nasaReferences: [
+              {
+                code: 'NASA/SP-2016-6105 Rev2',
+                title: 'NASA Systems Engineering Handbook',
+                version: 'Rev 2',
+                url: 'https://www.nasa.gov/reference/systems-engineering-handbook/',
+                basis: 'NASA_HANDBOOK_GUIDANCE',
+                relevance: 'Verification and margin guidance.',
+              },
+            ],
+            missionSuccesses: ['Mission completed'],
+            missionLimitations: [],
+            evaluatedAtIso: new Date().toISOString(),
+            cached: false,
+          },
+        }),
+      });
+    });
+
     await page.route('**/rest/v1/rpc/get_mission_leaderboard', async (route) => {
       await route.abort('failed');
     });

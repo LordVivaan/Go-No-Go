@@ -22,6 +22,7 @@ import {
 } from '../services/leaderboardService';
 import { isSupabaseConfigured, supabaseConfigReason } from '../services/supabaseClient';
 import { useSimulationStore } from '../store/simulationStore';
+import type { AiMissionEvaluationReport } from '../types/aiEvaluation';
 import type { EngineeringSummary } from '../types/engineering';
 import {
   CURRENT_SEASON_CODE,
@@ -43,6 +44,7 @@ export interface LeaderboardPanelProps {
   difficulty: MissionDifficulty;
   configSignature: string;
   isLivePreview?: boolean;
+  aiEvaluation?: AiMissionEvaluationReport | null;
 }
 
 const PAGE_SIZE = 15;
@@ -62,6 +64,7 @@ export function LeaderboardPanel({
   difficulty,
   configSignature,
   isLivePreview = false,
+  aiEvaluation = null,
 }: LeaderboardPanelProps) {
   const initialIdentity = getOrCreatePlayerIdentity();
   const finalSystemHealthPct = useSimulationStore((s) => s.currentTelemetry.systemHealthPct);
@@ -168,6 +171,14 @@ export function LeaderboardPanel({
       seasonCode: CURRENT_SEASON_CODE,
       configurationName: report.configurationName,
       telemetry,
+      evaluationMetadata: aiEvaluation
+        ? {
+            evaluationId: aiEvaluation.evaluationId,
+            evaluationVersion: aiEvaluation.evaluationVersion,
+            evaluationModel: aiEvaluation.model,
+            snapshotHash: aiEvaluation.snapshotHash,
+          }
+        : undefined,
     });
 
     setSubmitResult(result);
@@ -203,7 +214,7 @@ export function LeaderboardPanel({
             Global, Regional & Seasonal Standings (Provisional)
           </h2>
           <p className="mt-0.5 text-xs text-slate-400">
-            Scores are recomputed server-side from submitted mission telemetry (35/25/15/15/10) with deterministic tie-breakers (Score → Flight Duration → Earliest Run). Because interactive orbital ops run client-side without full server replay, browser submissions are marked Provisional.
+            Scores are recomputed server-side from submitted mission telemetry (35/25/15/15/10) with competition tie-ranking (equal scores share the same rank, ordered by earliest submission). Browser submissions are marked Provisional.
           </p>
         </div>
 

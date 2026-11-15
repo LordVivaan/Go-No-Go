@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router';
 import { EarthEnvironmentalWeatherPanel } from '../components/FloodBasinWeatherPanel';
 import { NasaEarthObservationPanel } from '../components/NasaEarthObservationPanel';
 import { TechTerm } from '../components/TechTerm';
+import { SPACECRAFT_BUSES } from '../data/components';
 import { DIFFICULTY_PROFILES, MISSION_SCENARIOS } from '../data/scenarios';
 import { ORBIT_CATALOG } from '../data/orbits';
 import { EarthScene } from '../scenes/EarthScene';
@@ -50,9 +51,11 @@ export function MissionBriefing() {
   const weatherDialogRef = useRef<HTMLDialogElement>(null);
 
   const scenarioId = useMissionStore((s) => s.scenarioId);
+  const busId = useMissionStore((s) => s.busId);
   const difficulty = useMissionStore((s) => s.difficulty);
   const setDifficulty = useMissionStore((s) => s.setDifficulty);
   const selectScenario = useMissionStore((s) => s.selectScenario);
+  const selectBus = useMissionStore((s) => s.selectBus);
   const applyPreset = useMissionStore((s) => s.applyPreset);
 
   const { scenario, orbit, instruments, engineering } = useResolvedMission();
@@ -300,6 +303,41 @@ export function MissionBriefing() {
 
               <div>
                 <div className="mb-1.5 flex items-center gap-1.5 font-mono-tech text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <Satellite className="h-3.5 w-3.5 text-cyan-300" aria-hidden="true" /> Spacecraft Bus Model
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {SPACECRAFT_BUSES.map((b) => {
+                    const selected = b.id === busId;
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        data-selected={selected}
+                        onClick={() => selectBus(b.id)}
+                        className="gng-glass-option p-2.5 text-left"
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-bold text-slate-100">{b.name}</span>
+                          <span className="font-mono-tech text-[10px] text-cyan-300">
+                            ${b.costMusd}M
+                          </span>
+                        </div>
+                        <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-0.5 font-mono-tech text-[10px] text-slate-300">
+                          <span>Dry: {b.massKg} kg</span>
+                          <span>Max PL: {b.maxPayloadMassKg ?? 0} kg</span>
+                          <span>Form: {b.compatibleFormFactors.join('/')}</span>
+                          <span>Slots: {b.payloadSlots ?? 2}</span>
+                          <span>Base Pwr: {b.powerDrawW} W</span>
+                          <span>SSR: {b.storageCapacityGb ?? 64} GB</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1.5 flex items-center gap-1.5 font-mono-tech text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                   <Sparkles className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" /> Quick
                   Architecture Baselines
                 </div>
@@ -322,10 +360,10 @@ export function MissionBriefing() {
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3.5">
               <button
                 type="button"
-                onClick={() => navigate('/architecture')}
+                onClick={() => navigate('/payloads')}
                 className="inline-flex items-center gap-2 rounded-md border border-cyan-300/60 bg-cyan-400 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-950 transition hover:bg-cyan-300"
               >
-                Start Mission Architecture
+                Continue to Payload Selection
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </button>
 

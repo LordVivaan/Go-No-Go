@@ -72,8 +72,70 @@ function localWeatherApiPlugin() {
   }
 }
 
+function readNodeRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = []
+    req.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)))
+    req.on('end', () => resolve(Buffer.concat(chunks)))
+    req.on('error', reject)
+  })
+}
+
+function localEvaluationApiPlugin() {
+  return {
+    name: 'local-openai-mission-evaluator-api',
+    configureServer(server) {
+      server.middlewares.use('/api/evaluate-mission', async (req, res, next) => {
+        try {
+          const { handleEvaluateMissionRequest } = await server.ssrLoadModule(
+            '/src/server/missionEvaluator.ts',
+          )
+          const fullUrl = new URL(
+            req.originalUrl || req.url || '/api/evaluate-mission',
+            'http://127.0.0.1',
+          ).toString()
+          const method = req.method || 'GET'
+          const hasBody = method !== 'GET' && method !== 'HEAD'
+          const bodyBuffer = hasBody ? await readNodeRequestBody(req) : undefined
+          const headers = new Headers()
+          if (req.headers['content-type']) {
+            headers.set('content-type', String(req.headers['content-type']))
+          }
+          const webReq = new Request(fullUrl, {
+            method,
+            headers,
+            body: bodyBuffer && bodyBuffer.length > 0 ? bodyBuffer : undefined,
+          })
+          const webRes = await handleEvaluateMissionRequest(webReq, {
+            OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+            OPENAI_MODEL: process.env.OPENAI_MODEL,
+          })
+          await sendNodeWebResponse(res, webRes)
+        } catch (err) {
+          next(err)
+        }
+      })
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use('/api/evaluate-mission', (_req, res) => {
+        res.statusCode = 503
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        res.setHeader('Cache-Control', 'no-store')
+        res.end(
+          JSON.stringify({
+            ok: false,
+            code: 'EVALUATION_CREDENTIALS_MISSING',
+            error:
+              'Static Vite preview does not execute Cloudflare Pages Functions. Run `wrangler pages dev dist` with local secrets for live /api/evaluate-mission testing.',
+          }),
+        )
+      })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), localWeatherApiPlugin()],
+  plugins: [react(), tailwindcss(), localWeatherApiPlugin(), localEvaluationApiPlugin()],
   resolve: useMinD3Fallback
     ? {
         alias: {

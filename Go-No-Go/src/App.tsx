@@ -3,11 +3,17 @@ import { BrowserRouter, Route, Routes } from 'react-router';
 import { AppShell } from './components/AppShell';
 import { MissionBriefing } from './pages/MissionBriefing';
 
+const PayloadSelection = lazy(() =>
+  import('./pages/PayloadSelection').then((m) => ({ default: m.PayloadSelection }))
+);
 const SpacecraftBuilder = lazy(() =>
   import('./pages/SpacecraftBuilder').then((m) => ({ default: m.SpacecraftBuilder }))
 );
 const OrbitPlanner = lazy(() =>
   import('./pages/OrbitPlanner').then((m) => ({ default: m.OrbitPlanner }))
+);
+const OperationsPlanner = lazy(() =>
+  import('./pages/OperationsPlanner').then((m) => ({ default: m.OperationsPlanner }))
 );
 const EngineeringVerification = lazy(() =>
   import('./pages/EngineeringVerification').then((m) => ({ default: m.EngineeringVerification }))
@@ -39,9 +45,12 @@ export function App() {
           <Routes>
             <Route path="/" element={<MissionBriefing />} />
             <Route path="/briefing" element={<MissionBriefing />} />
+            <Route path="/payloads" element={<PayloadSelection />} />
+            <Route path="/subsystems" element={<SpacecraftBuilder />} />
             <Route path="/architecture" element={<SpacecraftBuilder />} />
             <Route path="/builder" element={<SpacecraftBuilder />} />
             <Route path="/orbit" element={<OrbitPlanner />} />
+            <Route path="/operations-plan" element={<OperationsPlanner />} />
             <Route path="/verification" element={<EngineeringVerification />} />
             <Route path="/operations" element={<MissionSimulation />} />
             <Route path="/simulation" element={<MissionSimulation />} />

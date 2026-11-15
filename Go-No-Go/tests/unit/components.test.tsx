@@ -98,11 +98,11 @@ describe('React Component Tests — 6-Stage Shell, Advisory Decision, Planning S
     expect(screen.getByText(/Engineering advises GO/i)).toBeTruthy();
   });
 
-  it('renders strictly the 6 gameplay stages in AppShell without legacy sidebars or extra pages', () => {
+  it('renders strictly the 8 sequential mission stages in AppShell without legacy sidebars or extra pages', () => {
     useMissionStore.getState().applyPreset('preset-lunar-nominal-go');
 
     const { container } = render(
-      <MemoryRouter initialEntries={['/architecture']}>
+      <MemoryRouter initialEntries={['/subsystems']}>
         <AppShell>
           <div>Stage Content</div>
         </AppShell>
@@ -111,10 +111,12 @@ describe('React Component Tests — 6-Stage Shell, Advisory Decision, Planning S
 
     expect(container.querySelector('aside')).toBeNull();
     const navLinks = container.querySelectorAll('nav a');
-    expect(navLinks.length).toBe(6);
-    expect(screen.getByText('Briefing')).toBeTruthy();
-    expect(screen.getByText('Architecture')).toBeTruthy();
+    expect(navLinks.length).toBe(8);
+    expect(screen.getByText('Briefing & Bus')).toBeTruthy();
+    expect(screen.getByText('Payloads')).toBeTruthy();
+    expect(screen.getByText('Subsystems')).toBeTruthy();
     expect(screen.getByText('Orbit & Launch')).toBeTruthy();
+    expect(screen.getByText('Ops Plan')).toBeTruthy();
     expect(screen.getByText('Verification')).toBeTruthy();
     expect(screen.getByText('Operations')).toBeTruthy();
     expect(screen.getByText('Debrief')).toBeTruthy();

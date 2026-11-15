@@ -81,6 +81,42 @@ export default defineConfig({
         },
       }
     : undefined,
+  build: {
+    rolldownOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('/node_modules/three/')) {
+            return 'vendor-three'
+          }
+          if (
+            id.includes('/node_modules/@react-three/') ||
+            id.includes('/node_modules/three-stdlib/') ||
+            id.includes('/node_modules/maath/') ||
+            id.includes('/node_modules/camera-controls/')
+          ) {
+            return 'vendor-r3f'
+          }
+          if (id.includes('/node_modules/recharts/') || id.includes('/node_modules/d3-')) {
+            return 'vendor-charts'
+          }
+          if (id.includes('/node_modules/@supabase/')) {
+            return 'vendor-supabase'
+          }
+          if (
+            id.includes('/node_modules/react/') ||
+            id.includes('/node_modules/react-dom/') ||
+            id.includes('/node_modules/react-router/') ||
+            id.includes('/node_modules/zustand/') ||
+            id.includes('/node_modules/lucide-react/')
+          ) {
+            return 'vendor-ui'
+          }
+          return undefined
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

@@ -460,7 +460,7 @@ export function LeaderboardPanel({
             </div>
             <p className="mx-auto mt-1 max-w-lg text-xs text-slate-400">
               {supabaseConfigReason ??
-                'Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY.'}{' '}
+                'Public Supabase configuration is missing or invalid.'}{' '}
               Your local mission score (
               <span className="font-mono font-semibold text-cyan-300">
                 {report.totalScore.toFixed(1)} / 100 · {difficulty}

@@ -102,8 +102,18 @@ export interface LeaderboardQueryParams {
   offset?: number;
 }
 
+export type LeaderboardStateClassification =
+  | 'NOT_CONFIGURED'
+  | 'CONFIGURED_LOADING'
+  | 'ONLINE'
+  | 'EMPTY'
+  | 'TEMPORARILY_UNAVAILABLE'
+  | 'PERMISSION_ERROR'
+  | 'RPC_MISSING';
+
 export interface LeaderboardQueryResult {
   status: 'OK' | 'OFFLINE' | 'ERROR';
+  classification?: LeaderboardStateClassification;
   totalCount: number;
   entries: LeaderboardEntry[];
   playerEntry: LeaderboardEntry | null;

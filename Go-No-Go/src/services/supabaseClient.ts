@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { SUPABASE_PUBLIC_CONFIG } from '../config/supabasePublicConfig';
 import type { Database } from '../types/database.types';
 
 export interface SupabaseEnvCheck {
@@ -10,10 +11,19 @@ export interface SupabaseEnvCheck {
 
 export interface SupabaseDiagnostics {
   configured: boolean;
+  clientInitialized: boolean;
   hasUrl: boolean;
   hasPublishableKey: boolean;
   keyKind: 'publishable' | 'anon-jwt' | 'missing' | 'invalid-secret' | 'invalid';
   reason?: string;
+}
+
+export interface SupabaseConfigInput {
+  url?: string;
+  publishableKey?: string;
+  VITE_SUPABASE_URL?: string;
+  VITE_SUPABASE_PUBLISHABLE_KEY?: string;
+  VITE_SUPABASE_ANON_KEY?: string;
 }
 
 const PLACEHOLDER_MARKERS = ['placeholder', 'your-supabase', 'your-project-ref', 'example.com'];
@@ -37,26 +47,29 @@ function isSecretOrServiceRoleKey(key: string): boolean {
   return lower.startsWith('sb_secret_') || lower.includes('service_role');
 }
 
-/**
- * Validates public Supabase browser environment variables.
- * Prefers `VITE_SUPABASE_PUBLISHABLE_KEY` and falls back to `VITE_SUPABASE_ANON_KEY`
- * for backward compatibility with existing local configurations.
- */
-export function validateSupabaseEnv(env: {
-  VITE_SUPABASE_URL?: string;
-  VITE_SUPABASE_PUBLISHABLE_KEY?: string;
-  VITE_SUPABASE_ANON_KEY?: string;
-}): SupabaseEnvCheck {
-  const rawUrl = env.VITE_SUPABASE_URL?.trim();
+function extractRawConfig(input: SupabaseConfigInput): { rawUrl: string; rawKey: string } {
+  const rawUrl = (input.url ?? input.VITE_SUPABASE_URL)?.trim() ?? '';
   const rawKey =
-    env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || env.VITE_SUPABASE_ANON_KEY?.trim() || '';
+    input.publishableKey?.trim() ||
+    input.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+    input.VITE_SUPABASE_ANON_KEY?.trim() ||
+    '';
+  return { rawUrl, rawKey };
+}
+
+/**
+ * Validates public Supabase browser configuration.
+ * Rejects missing, placeholder, malformed, or secret/service-role credentials.
+ */
+export function validateSupabaseEnv(input: SupabaseConfigInput): SupabaseEnvCheck {
+  const { rawUrl, rawKey } = extractRawConfig(input);
 
   if (!rawUrl || !rawKey) {
     return {
       configured: false,
       url: null,
       publishableKey: null,
-      reason: 'Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY.',
+      reason: 'Public Supabase URL or publishable key is missing.',
     };
   }
 
@@ -65,7 +78,7 @@ export function validateSupabaseEnv(env: {
       configured: false,
       url: null,
       publishableKey: null,
-      reason: 'VITE_SUPABASE_URL is invalid or still uses a placeholder value.',
+      reason: 'Public Supabase URL is invalid or still uses a placeholder value.',
     };
   }
 
@@ -74,7 +87,7 @@ export function validateSupabaseEnv(env: {
       configured: false,
       url: null,
       publishableKey: null,
-      reason: 'Secret or service-role keys must never be used in VITE_SUPABASE_PUBLISHABLE_KEY.',
+      reason: 'Secret or service-role keys must never be used in browser-facing configuration.',
     };
   }
 
@@ -83,7 +96,7 @@ export function validateSupabaseEnv(env: {
       configured: false,
       url: null,
       publishableKey: null,
-      reason: 'VITE_SUPABASE_PUBLISHABLE_KEY is invalid or still uses a placeholder value.',
+      reason: 'Public Supabase publishable key is invalid or still uses a placeholder value.',
     };
   }
 
@@ -94,26 +107,46 @@ export function validateSupabaseEnv(env: {
   };
 }
 
+export function createSupabaseClientFromEnv(input: SupabaseConfigInput): {
+  configured: boolean;
+  client: SupabaseClient<Database> | null;
+  reason?: string;
+} {
+  const check = validateSupabaseEnv(input);
+  if (!check.configured || !check.url || !check.publishableKey) {
+    return {
+      configured: false,
+      client: null,
+      reason: check.reason,
+    };
+  }
+
+  return {
+    configured: true,
+    client: createClient<Database>(check.url, check.publishableKey),
+  };
+}
+
+const resolved = createSupabaseClientFromEnv({
+  url: SUPABASE_PUBLIC_CONFIG.url,
+  publishableKey: SUPABASE_PUBLIC_CONFIG.publishableKey,
+});
+
+export const isSupabaseConfigured = resolved.configured;
+export const supabaseConfigReason = resolved.reason;
+export const supabaseClient: SupabaseClient<Database> | null = resolved.client;
+
 /**
- * Returns safe, credential-free diagnostics describing whether browser-facing
- * Supabase variables are present and valid without ever exposing values.
+ * Returns safe, credential-free diagnostics describing the bundled public
+ * Supabase configuration and client initialization state without exposing values.
  */
-export function getSupabaseDiagnostics(env?: {
-  VITE_SUPABASE_URL?: string;
-  VITE_SUPABASE_PUBLISHABLE_KEY?: string;
-  VITE_SUPABASE_ANON_KEY?: string;
-}): SupabaseDiagnostics {
-  const source = env ?? {
-    VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL as string | undefined,
-    VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as
-      | string
-      | undefined,
-    VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined,
+export function getSupabaseDiagnostics(input?: SupabaseConfigInput): SupabaseDiagnostics {
+  const source: SupabaseConfigInput = input ?? {
+    url: SUPABASE_PUBLIC_CONFIG.url,
+    publishableKey: SUPABASE_PUBLIC_CONFIG.publishableKey,
   };
 
-  const rawUrl = source.VITE_SUPABASE_URL?.trim() ?? '';
-  const rawKey =
-    source.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || source.VITE_SUPABASE_ANON_KEY?.trim() || '';
+  const { rawUrl, rawKey } = extractRawConfig(source);
   const check = validateSupabaseEnv(source);
 
   let keyKind: SupabaseDiagnostics['keyKind'] = 'missing';
@@ -131,45 +164,14 @@ export function getSupabaseDiagnostics(env?: {
     }
   }
 
+  const clientInitialized = input ? check.configured : Boolean(supabaseClient && isSupabaseConfigured);
+
   return {
     configured: check.configured,
+    clientInitialized,
     hasUrl: Boolean(rawUrl),
     hasPublishableKey: Boolean(rawKey),
     keyKind,
     ...(check.reason ? { reason: check.reason } : {}),
   };
 }
-
-export function createSupabaseClientFromEnv(env: {
-  VITE_SUPABASE_URL?: string;
-  VITE_SUPABASE_PUBLISHABLE_KEY?: string;
-  VITE_SUPABASE_ANON_KEY?: string;
-}): {
-  configured: boolean;
-  client: SupabaseClient<Database> | null;
-  reason?: string;
-} {
-  const check = validateSupabaseEnv(env);
-  if (!check.configured || !check.url || !check.publishableKey) {
-    return {
-      configured: false,
-      client: null,
-      reason: check.reason,
-    };
-  }
-
-  return {
-    configured: true,
-    client: createClient<Database>(check.url, check.publishableKey),
-  };
-}
-
-const resolved = createSupabaseClientFromEnv({
-  VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL as string | undefined,
-  VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined,
-  VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined,
-});
-
-export const isSupabaseConfigured = resolved.configured;
-export const supabaseConfigReason = resolved.reason;
-export const supabaseClient: SupabaseClient<Database> | null = resolved.client;

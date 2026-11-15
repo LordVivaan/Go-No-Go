@@ -8,9 +8,27 @@ import {
   type LeaderboardEntry,
   type LeaderboardQueryParams,
   type LeaderboardQueryResult,
+  type LeaderboardStateClassification,
   type LeaderboardSubmissionResult,
   type LeaderboardVerificationTelemetry,
 } from '../types/leaderboard';
+
+export interface LeaderboardDiagnosticStatus {
+  status: LeaderboardStateClassification;
+  lastRequestSucceeded: boolean | null;
+}
+
+let lastLeaderboardStatus: LeaderboardStateClassification | null = null;
+let lastRequestSucceeded: boolean | null = null;
+
+export function getLeaderboardDiagnosticStatus(): LeaderboardDiagnosticStatus {
+  return {
+    status: !isSupabaseConfigured
+      ? 'NOT_CONFIGURED'
+      : (lastLeaderboardStatus ?? 'CONFIGURED_LOADING'),
+    lastRequestSucceeded,
+  };
+}
 
 const PLAYER_IDENTITY_STORAGE_KEY = 'gng_player_identity_v1';
 
@@ -430,14 +448,19 @@ export async function submitVerifiedMissionScore(params: {
   }
 }
 
-function formatLeaderboardRpcError(rawMessage: string): string {
+export function classifyLeaderboardRpcError(
+  rawMessage: string
+): Extract<
+  LeaderboardStateClassification,
+  'RPC_MISSING' | 'PERMISSION_ERROR' | 'TEMPORARILY_UNAVAILABLE'
+> {
   const lower = rawMessage.toLowerCase();
   if (
     lower.includes('could not find the function') ||
     lower.includes('schema cache') ||
     lower.includes('pgrst202')
   ) {
-    return `Leaderboard unavailable: RPC function not found. (${rawMessage})`;
+    return 'RPC_MISSING';
   }
   if (
     lower.includes('permission denied') ||
@@ -447,8 +470,20 @@ function formatLeaderboardRpcError(rawMessage: string): string {
     lower.includes('pgrst301') ||
     lower.includes('jwt')
   ) {
+    return 'PERMISSION_ERROR';
+  }
+  return 'TEMPORARILY_UNAVAILABLE';
+}
+
+function formatLeaderboardRpcError(rawMessage: string): string {
+  const kind = classifyLeaderboardRpcError(rawMessage);
+  if (kind === 'RPC_MISSING') {
+    return `Leaderboard unavailable: RPC function not found. (${rawMessage})`;
+  }
+  if (kind === 'PERMISSION_ERROR') {
     return `Leaderboard access denied: permission or API key error. (${rawMessage})`;
   }
+  const lower = rawMessage.toLowerCase();
   if (
     lower.includes('failed to fetch') ||
     lower.includes('networkerror') ||
@@ -467,8 +502,11 @@ export async function fetchMissionLeaderboard(
   params: LeaderboardQueryParams
 ): Promise<LeaderboardQueryResult> {
   if (!isSupabaseConfigured || !supabaseClient) {
+    lastLeaderboardStatus = 'NOT_CONFIGURED';
+    lastRequestSucceeded = null;
     return {
       status: 'OFFLINE',
+      classification: 'NOT_CONFIGURED',
       totalCount: 0,
       entries: [],
       playerEntry: null,
@@ -484,6 +522,7 @@ export async function fetchMissionLeaderboard(
   if (normalizedCountry && !isValidIsoCountryCode(normalizedCountry)) {
     return {
       status: 'ERROR',
+      classification: 'TEMPORARILY_UNAVAILABLE',
       totalCount: 0,
       entries: [],
       playerEntry: null,
@@ -491,6 +530,8 @@ export async function fetchMissionLeaderboard(
       errorMessage: 'Invalid ISO-3166-1 alpha-2 country filter.',
     };
   }
+
+  lastLeaderboardStatus = 'CONFIGURED_LOADING';
 
   try {
     const identity = getOrCreatePlayerIdentity();
@@ -505,8 +546,12 @@ export async function fetchMissionLeaderboard(
     });
 
     if (error) {
+      const classification = classifyLeaderboardRpcError(error.message);
+      lastLeaderboardStatus = classification;
+      lastRequestSucceeded = false;
       return {
         status: 'ERROR',
+        classification,
         totalCount: 0,
         entries: [],
         playerEntry: null,
@@ -516,10 +561,18 @@ export async function fetchMissionLeaderboard(
     }
 
     const payload = (data ?? {}) as Record<string, unknown>;
+    const entries = Array.isArray(payload.entries) ? (payload.entries as LeaderboardEntry[]) : [];
+    const totalCount = typeof payload.totalCount === 'number' ? payload.totalCount : 0;
+    const classification: LeaderboardStateClassification =
+      entries.length === 0 && totalCount === 0 ? 'EMPTY' : 'ONLINE';
+    lastLeaderboardStatus = classification;
+    lastRequestSucceeded = true;
+
     return {
       status: 'OK',
-      totalCount: typeof payload.totalCount === 'number' ? payload.totalCount : 0,
-      entries: Array.isArray(payload.entries) ? (payload.entries as LeaderboardEntry[]) : [],
+      classification,
+      totalCount,
+      entries,
       playerEntry: (payload.playerEntry as LeaderboardEntry | null) ?? null,
       nearbyEntries: Array.isArray(payload.nearbyEntries)
         ? (payload.nearbyEntries as LeaderboardEntry[])
@@ -527,8 +580,12 @@ export async function fetchMissionLeaderboard(
     };
   } catch (err) {
     const rawMessage = err instanceof Error ? err.message : 'Leaderboard query failed.';
+    const classification = classifyLeaderboardRpcError(rawMessage);
+    lastLeaderboardStatus = classification;
+    lastRequestSucceeded = false;
     return {
       status: 'ERROR',
+      classification,
       totalCount: 0,
       entries: [],
       playerEntry: null,

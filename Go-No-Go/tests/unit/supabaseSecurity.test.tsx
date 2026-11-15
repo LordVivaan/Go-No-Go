@@ -39,8 +39,11 @@ vi.mock('../../src/services/supabaseClient', async (importOriginal) => {
 
 import {
   buildLeaderboardVerificationTelemetry,
+  classifyLeaderboardRpcError,
+  fetchMissionLeaderboard,
   submitVerifiedMissionScore,
 } from '../../src/services/leaderboardService';
+import { SUPABASE_PUBLIC_CONFIG } from '../../src/config/supabasePublicConfig';
 import { LeaderboardPanel } from '../../src/components/LeaderboardPanel';
 
 describe('Supabase Environment, Auth Errors, Leaderboard States & Security Audit', () => {
@@ -93,17 +96,70 @@ describe('Supabase Environment, Auth Errors, Leaderboard States & Security Audit
     expect(secretRejected.reason).toContain('Secret or service-role');
 
     const diag = getSupabaseDiagnostics({
-      VITE_SUPABASE_URL: 'https://yckvuuapqgiqagswxhqv.supabase.co',
-      VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test_key_1234567890',
+      url: 'https://yckvuuapqgiqagswxhqv.supabase.co',
+      publishableKey: 'sb_publishable_test_key_1234567890',
     });
     expect(diag).toEqual({
       configured: true,
+      clientInitialized: true,
       hasUrl: true,
       hasPublishableKey: true,
       keyKind: 'publishable',
     });
     expect(JSON.stringify(diag)).not.toContain('yckvuuapqgiqagswxhqv');
     expect(JSON.stringify(diag)).not.toContain('sb_publishable_test_key');
+  });
+
+  it('validates bundled SUPABASE_PUBLIC_CONFIG without Vite env vars and classifies leaderboard states', async () => {
+    const publicCheck = validateSupabaseEnv({
+      url: SUPABASE_PUBLIC_CONFIG.url,
+      publishableKey: SUPABASE_PUBLIC_CONFIG.publishableKey,
+    });
+    expect(publicCheck.configured).toBe(true);
+    expect(
+      createSupabaseClientFromEnv({
+        url: SUPABASE_PUBLIC_CONFIG.url,
+        publishableKey: SUPABASE_PUBLIC_CONFIG.publishableKey,
+      }).configured
+    ).toBe(true);
+
+    // Offline / NOT_CONFIGURED when client is disabled
+    mockSupabaseState.configured = false;
+    const offlineBoard = await fetchMissionLeaderboard({
+      missionCode: 'LUNAR SCOUT',
+      difficulty: 'STANDARD',
+      seasonCode: '2026-S1',
+    });
+    expect(offlineBoard.status).toBe('OFFLINE');
+    expect(offlineBoard.classification).toBe('NOT_CONFIGURED');
+
+    // Empty vs Network Error vs Permission Error vs Missing RPC when configured
+    mockSupabaseState.configured = true;
+    mockRpc.mockResolvedValueOnce({
+      data: { totalCount: 0, entries: [], playerEntry: null, nearbyEntries: [] },
+      error: null,
+    });
+    const emptyBoard = await fetchMissionLeaderboard({
+      missionCode: 'LUNAR SCOUT',
+      difficulty: 'STANDARD',
+      seasonCode: '2026-S1',
+    });
+    expect(emptyBoard.status).toBe('OK');
+    expect(emptyBoard.classification).toBe('EMPTY');
+
+    mockRpc.mockRejectedValueOnce(new Error('Failed to fetch'));
+    const netErrBoard = await fetchMissionLeaderboard({
+      missionCode: 'LUNAR SCOUT',
+      difficulty: 'STANDARD',
+      seasonCode: '2026-S1',
+    });
+    expect(netErrBoard.status).toBe('ERROR');
+    expect(netErrBoard.classification).toBe('TEMPORARILY_UNAVAILABLE');
+
+    expect(classifyLeaderboardRpcError('PGRST202 could not find the function')).toBe('RPC_MISSING');
+    expect(classifyLeaderboardRpcError('permission denied for table leaderboard_entries')).toBe(
+      'PERMISSION_ERROR'
+    );
   });
 
   it('initializes Supabase client cleanly with VITE_SUPABASE_PUBLISHABLE_KEY or fallback anon key', () => {

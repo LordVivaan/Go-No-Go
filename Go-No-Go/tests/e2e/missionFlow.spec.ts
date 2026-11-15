@@ -565,4 +565,45 @@ test.describe('Leaderboard States & Supabase RPC Mocking', () => {
       page.getByText('Leaderboard temporarily unavailable: unable to reach server.')
     ).toBeVisible();
   });
+
+  test('registers window.__GNG_DIAGNOSTICS__ in production build and returns safe diagnostics', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('earth-scene')).toBeVisible();
+
+    const result = await page.evaluate(() => {
+      const w = window as unknown as { __GNG_DIAGNOSTICS__?: () => unknown };
+      return {
+        fnType: typeof w.__GNG_DIAGNOSTICS__,
+        payload: typeof w.__GNG_DIAGNOSTICS__ === 'function' ? w.__GNG_DIAGNOSTICS__() : null,
+      };
+    });
+
+    expect(result.fnType).toBe('function');
+    expect(result.payload).toBeTruthy();
+    const payload = result.payload as {
+      supabase: {
+        configured: boolean;
+        hasUrl: boolean;
+        hasPublishableKey: boolean;
+        keyKind: string;
+      };
+      planetaryTextures: Array<{ body: string; materialMode: string; status: string }>;
+    };
+    expect(typeof payload.supabase.configured).toBe('boolean');
+    expect(typeof payload.supabase.hasUrl).toBe('boolean');
+    expect(typeof payload.supabase.hasPublishableKey).toBe('boolean');
+    expect(payload.planetaryTextures.map((p) => p.body)).toEqual([
+      'EARTH',
+      'MOON',
+      'MARS',
+      'ASTEROID',
+    ]);
+
+    const serialized = JSON.stringify(result.payload);
+    expect(serialized).not.toContain('sb_publishable_');
+    expect(serialized).not.toContain('sb_secret_');
+    expect(serialized).not.toContain('supabase.co');
+  });
 });

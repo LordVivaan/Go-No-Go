@@ -196,10 +196,10 @@ export function LeaderboardPanel({
             <Trophy className="h-4 w-4" /> International Leaderboard
           </div>
           <h2 className="mt-1 text-base font-bold text-slate-100">
-            Server-Verified Global, Regional & Seasonal Standings
+            Global, Regional & Seasonal Standings (Provisional)
           </h2>
           <p className="mt-0.5 text-xs text-slate-400">
-            Scores are recomputed server-side from full mission telemetry with deterministic tie-breakers (Score → Flight Duration → Earliest Run).
+            Scores are recomputed server-side from submitted mission telemetry (35/25/15/15/10) with deterministic tie-breakers (Score → Flight Duration → Earliest Run). Because interactive orbital ops run client-side without full server replay, browser submissions are marked Provisional.
           </p>
         </div>
 
@@ -399,17 +399,24 @@ export function LeaderboardPanel({
               <>
                 <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-300" />
                 <span>
-                  Verified score <strong>{submitResult.verifiedScore?.toFixed(1)}</strong> (Grade{' '}
+                  {submitResult.verificationStatus === 'VERIFIED'
+                    ? 'Verified score'
+                    : 'Provisional score (telemetry-checked)'}{' '}
+                  <strong>{submitResult.verifiedScore?.toFixed(1)}</strong> (Grade{' '}
                   {submitResult.grade}).{' '}
                   {submitResult.isNewPersonalBest
                     ? 'New personal best recorded!'
                     : `Existing personal best (${submitResult.bestScore?.toFixed(1)}) retained.`}
+                  {submitResult.authWarning ? ` (${submitResult.authWarning})` : ''}
                 </span>
               </>
             ) : (
               <>
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />
-                <span>{submitResult.error}</span>
+                <span>
+                  {submitResult.error}
+                  {submitResult.authWarning ? ` (${submitResult.authWarning})` : ''}
+                </span>
               </>
             )}
           </div>
@@ -483,6 +490,7 @@ export function LeaderboardPanel({
                     <th className="px-3 py-2.5 text-right">Duration</th>
                     <th className="px-3 py-2.5 text-right">Score</th>
                     <th className="px-3 py-2.5 text-center">Grade</th>
+                    <th className="px-3 py-2.5 text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
@@ -521,6 +529,17 @@ export function LeaderboardPanel({
                       </td>
                       <td className="px-3 py-2 text-center font-mono font-bold">
                         {entry.grade}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <span
+                          className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold ${
+                            entry.verificationStatus === 'VERIFIED' || entry.isVerified
+                              ? 'bg-emerald-500/20 text-emerald-200'
+                              : 'bg-amber-500/15 text-amber-200'
+                          }`}
+                        >
+                          {entry.verificationStatus ?? (entry.isVerified ? 'VERIFIED' : 'PROVISIONAL')}
+                        </span>
                       </td>
                     </tr>
                   ))}

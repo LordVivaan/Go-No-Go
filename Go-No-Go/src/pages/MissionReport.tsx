@@ -401,7 +401,9 @@ export function MissionReport() {
             </div>
           )}
 
-          {scenario.celestialBody === 'EARTH' && (
+          {(scenario.celestialBody === 'EARTH' ||
+            externalEoUsage.length > 0 ||
+            externalWeatherUsage.length > 0) && (
             <div className="rounded-xl border border-cyan-400/20 bg-black/25 p-3.5">
               <div className="text-[11px] font-bold uppercase tracking-wider text-cyan-300">
                 External Earth-Observation Datasets & Provenance
@@ -432,9 +434,10 @@ export function MissionReport() {
               ) : (
                 <p className="mt-1.5 text-xs text-slate-400">
                   No external Planetary Computer or NASA GIBS scenes were queried during this flight
-                  run (simulation used deterministic FLOODWATCH orbital & basin cloud parameters).
-                  Open the EO imagery inspector in Briefing or Operations to attach real
-                  Sentinel-1 RTC / Sentinel-2 L2A acquisitions.
+                  run (simulation used deterministic orbital &amp; scenario target parameters).
+                  {scenario.celestialBody === 'EARTH'
+                    ? ' Open the EO imagery inspector in Briefing or Operations to attach real Sentinel-1 RTC / Sentinel-2 L2A acquisitions.'
+                    : ''}
                 </p>
               )}
 

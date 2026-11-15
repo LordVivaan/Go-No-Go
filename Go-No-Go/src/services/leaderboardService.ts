@@ -15,13 +15,13 @@ import {
 const PLAYER_IDENTITY_STORAGE_KEY = 'gng_player_identity_v1';
 
 const VALID_MISSION_CODES = new Set([
-  'FLOODWATCH',
-  'LUNAR ICE MAPPER',
   'LUNAR SCOUT',
+  'LUNAR ICE MAPPER',
   'MARS OBSERVER',
   'MARS RELAY',
   'ASTEROID EXPLORER',
   'NEAR-EARTH ASTEROID',
+  'FLOODWATCH', // Historical compatibility for legacy database records; not in public MISSION_SCENARIOS
 ]);
 
 const VALID_DIFFICULTIES = new Set<MissionDifficulty>(['STANDARD', 'HARD', 'EXPERT']);
@@ -343,15 +343,35 @@ export async function submitVerifiedMissionScore(params: {
     };
   }
 
+  let authWarning: string | undefined;
+
   try {
-    const { data: sessionData } = await supabaseClient.auth.getSession();
-    if (!sessionData?.session) {
+    const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+    if (sessionError) {
+      authWarning = `Session check failed (${sessionError.message}); using pseudonymous fallback token.`;
+    } else if (!sessionData?.session) {
       try {
-        await supabaseClient.auth.signInAnonymously();
-      } catch {
-        // Proceed with pseudonymous client token when anonymous auth is disabled.
+        const { error: anonError } = await supabaseClient.auth.signInAnonymously();
+        if (anonError) {
+          authWarning = `Anonymous auth unavailable (${anonError.message}); using pseudonymous fallback token.`;
+        }
+      } catch (anonErr) {
+        authWarning =
+          anonErr instanceof Error
+            ? `Anonymous auth unavailable (${anonErr.message}); using pseudonymous fallback token.`
+            : 'Anonymous auth unavailable; using pseudonymous fallback token.';
       }
     }
+
+    // Strip any client-side verification flags defensively; the server owns verification_status.
+    const sanitizedTelemetry = JSON.parse(JSON.stringify(params.telemetry)) as Record<
+      string,
+      unknown
+    >;
+    delete sanitizedTelemetry.isVerified;
+    delete sanitizedTelemetry.is_verified;
+    delete sanitizedTelemetry.verificationStatus;
+    delete sanitizedTelemetry.verification_status;
 
     const { data, error } = await supabaseClient.rpc('submit_verified_mission_score', {
       p_player_token: identity.playerToken,
@@ -361,17 +381,18 @@ export async function submitVerifiedMissionScore(params: {
       p_difficulty: params.difficulty,
       p_season_code: seasonCode,
       p_configuration_name: params.configurationName.trim().slice(0, 80),
-      p_telemetry: JSON.parse(JSON.stringify(params.telemetry)),
+      p_telemetry: sanitizedTelemetry as unknown as import('../types/database.types').Json,
     });
 
     if (error) {
-      return { ok: false, error: error.message };
+      return { ok: false, authWarning, error: error.message };
     }
 
     const payload = (data ?? {}) as Record<string, unknown>;
     if (payload.ok !== true) {
       return {
         ok: false,
+        authWarning,
         error:
           typeof payload.error === 'string'
             ? payload.error
@@ -379,8 +400,16 @@ export async function submitVerifiedMissionScore(params: {
       };
     }
 
+    const verificationStatus =
+      payload.verificationStatus === 'VERIFIED' ||
+      payload.verificationStatus === 'UNVERIFIED' ||
+      payload.verificationStatus === 'PROVISIONAL'
+        ? payload.verificationStatus
+        : 'PROVISIONAL';
+
     return {
       ok: true,
+      authWarning,
       entryId: typeof payload.entryId === 'string' ? payload.entryId : undefined,
       verifiedScore:
         typeof payload.verifiedScore === 'number' ? payload.verifiedScore : undefined,
@@ -388,10 +417,13 @@ export async function submitVerifiedMissionScore(params: {
       grade: typeof payload.grade === 'string' ? payload.grade : undefined,
       outcome: typeof payload.outcome === 'string' ? payload.outcome : undefined,
       isNewPersonalBest: Boolean(payload.isNewPersonalBest),
+      isVerified: Boolean(payload.isVerified),
+      verificationStatus,
     };
   } catch (err) {
     return {
       ok: false,
+      authWarning,
       error: err instanceof Error ? err.message : 'Unable to reach verification server.',
     };
   }

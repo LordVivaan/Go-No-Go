@@ -336,7 +336,7 @@ export function NasaEarthObservationPanel({
             </h3>
             <p className="text-[11px] text-[#8E9BAD]">
               Microsoft Planetary Computer STAC (Sentinel-1 RTC SAR · Sentinel-2 L2A Optical ·
-              Copernicus DEM) & NASA GIBS WMTS over FLOODWATCH flood basins
+              Copernicus DEM) & NASA GIBS WMTS over Earth-observation reference basins
             </p>
           </div>
         </div>
@@ -635,7 +635,7 @@ export function NasaEarthObservationPanel({
               </div>
               <p className="mt-1 text-[#8E9BAD]">
                 Terra MODIS and Suomi-NPP VIIRS optical reflectance bands capture top-of-atmosphere
-                storm cloud decks, showing why FLOODWATCH uses C-Band / X-Band Synthetic Aperture
+                storm cloud decks, showing why Earth-observation missions use C-Band / X-Band Synthetic Aperture
                 Radar (such as Sentinel-1 RTC) when storm clouds obscure river basins.
               </p>
             </div>

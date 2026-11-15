@@ -41,3 +41,7 @@ supabase/.branches/
 .idea
 .vscode/*
 !.vscode/extensions.json
+
+SUBMISSION.md
+Project.md
+AIM.md

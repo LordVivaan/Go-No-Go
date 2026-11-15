@@ -19,7 +19,7 @@ import {
 } from '../types/weather';
 import { fetchBasinWeather } from '../services/weatherService';
 
-interface FloodBasinWeatherPanelProps {
+export interface EarthEnvironmentalWeatherPanelProps {
   initialBasinId?: FloodwatchBasinId;
   hasCloudPenetratingPayload?: boolean;
   autoFetchOnMount?: boolean;
@@ -62,11 +62,11 @@ function formatMetric(value: number | null, unit: string, decimals = 1): string 
   return `${value.toFixed(decimals)} ${unit}`;
 }
 
-export function FloodBasinWeatherPanel({
+export function EarthEnvironmentalWeatherPanel({
   initialBasinId = 'basin-brahmaputra',
   hasCloudPenetratingPayload = true,
   autoFetchOnMount = true,
-}: FloodBasinWeatherPanelProps) {
+}: EarthEnvironmentalWeatherPanelProps) {
   const [selectedBasinId, setSelectedBasinId] =
     useState<FloodwatchBasinId>(initialBasinId);
   const [windowMode, setWindowMode] = useState<WeatherWindowMode>('current');
@@ -136,7 +136,7 @@ export function FloodBasinWeatherPanel({
     <div className="space-y-3 text-slate-200">
       {/* Controls bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#1E2D45] bg-[#0D1422] p-3">
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="FLOODWATCH Target Basin">
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Earth-Observation Target Region">
           {FLOODWATCH_WEATHER_BASINS.map((b) => {
             const active = b.id === selectedBasinId;
             return (
@@ -379,17 +379,19 @@ export function FloodBasinWeatherPanel({
           </div>
           <p className="mt-1.5 text-slate-200">{result.message}</p>
           <p className="mt-1 text-[11px] text-slate-300">
-            Mission simulation continues unaffected using deterministic FLOODWATCH orbital mechanics
-            and static basin cloud assumptions.
+            Mission simulation continues unaffected using deterministic orbital mechanics
+            and static target cloud-cover assumptions.
           </p>
         </div>
       ) : (
         <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-xs text-slate-300">
           {loading
             ? 'Requesting Meteomatics weather context via same-origin /api/weather...'
-            : 'Click Refresh to query weather context for the selected basin.'}
+            : 'Click Refresh to query environmental weather context for the selected target region.'}
         </div>
       )}
     </div>
   );
 }
+
+export const FloodBasinWeatherPanel = EarthEnvironmentalWeatherPanel;

@@ -36,8 +36,9 @@ Deno.serve(async (req: Request) => {
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
-  if (!supabaseUrl || !supabaseAnonKey) {
+  const supabasePublishableKey =
+    Deno.env.get('SUPABASE_PUBLISHABLE_KEY') ?? Deno.env.get('SUPABASE_ANON_KEY');
+  if (!supabaseUrl || !supabasePublishableKey) {
     return new Response(
       JSON.stringify({ ok: false, error: 'Leaderboard backend environment not configured.' }),
       {
@@ -66,7 +67,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const authHeader = req.headers.get('Authorization');
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    const supabase = createClient(supabaseUrl, supabasePublishableKey, {
       global: authHeader ? { headers: { Authorization: authHeader } } : undefined,
       auth: { persistSession: false, autoRefreshToken: false },
     });

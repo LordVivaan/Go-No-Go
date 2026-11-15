@@ -27,7 +27,7 @@ import { FIXED_PHYSICS_DT_SECONDS, useSimulationStore } from '../store/simulatio
 import { NotificationPanel } from '../components/NotificationPanel';
 import { MissionTimeline } from '../components/MissionTimeline';
 import { NasaEarthObservationPanel } from '../components/NasaEarthObservationPanel';
-import { FloodBasinWeatherPanel } from '../components/FloodBasinWeatherPanel';
+import { EarthEnvironmentalWeatherPanel } from '../components/FloodBasinWeatherPanel';
 import { isFloodwatchBasinId } from '../types/weather';
 import type { InstrumentMode } from '../types/simulation';
 
@@ -615,18 +615,18 @@ export function MissionSimulation() {
         </div>
       )}
 
-      {/* On-Demand Meteomatics Basin Weather Context Modal */}
+      {/* On-Demand Meteomatics Environmental Weather Context Modal */}
       {weatherModalOpen && scenario.celestialBody === 'EARTH' && (
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Orbital Operations Basin Weather Context"
+          aria-label="Orbital Operations Environmental Weather Context"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
         >
           <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-white/15 bg-[#070f20] p-4 shadow-2xl sm:p-5">
             <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-2.5">
               <h2 className="text-sm font-bold text-slate-100">
-                Orbital Operations · Basin Weather Context (Meteomatics)
+                Orbital Operations · Environmental Weather Context (Meteomatics)
               </h2>
               <button
                 type="button"
@@ -637,7 +637,7 @@ export function MissionSimulation() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <FloodBasinWeatherPanel
+            <EarthEnvironmentalWeatherPanel
               initialBasinId={
                 activeRegion?.id && isFloodwatchBasinId(activeRegion.id)
                   ? activeRegion.id

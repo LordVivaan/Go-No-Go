@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NasaEarthObservationPanel } from '../../src/components/NasaEarthObservationPanel';
-import { MISSION_SCENARIOS } from '../../src/data/scenarios';
+import type { TargetRegion } from '../../src/types/mission';
+import { FLOODWATCH_WEATHER_BASINS } from '../../src/types/weather';
 import {
   PLANETARY_COMPUTER_DATASETS,
   buildBasinBoundingBox,
@@ -14,8 +15,18 @@ import {
   signPlanetaryComputerAssetUrl,
 } from '../../src/services/planetaryComputerService';
 
-const FLOODWATCH = MISSION_SCENARIOS.find((s) => s.code === 'FLOODWATCH')!;
-const BRAHMAPUTRA = FLOODWATCH.targetRegions[0]!;
+// Isolated Earth-observation target fixture (independent of playable MISSION_SCENARIOS)
+const EO_TEST_REGIONS: TargetRegion[] = FLOODWATCH_WEATHER_BASINS.map((b) => ({
+  id: b.id,
+  name: b.name,
+  latitudeDeg: b.lat,
+  longitudeDeg: b.lon,
+  radiusKm: 360,
+  cloudCoverFraction: b.baselineCloudCoverFraction,
+  priorityWeight: 0.25,
+  description: b.regionLabel,
+}));
+const BRAHMAPUTRA = EO_TEST_REGIONS[0]!;
 
 function mockJsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}) {
   return {
@@ -283,7 +294,7 @@ describe('Planetary Computer Earth-Observation Service & Panel', () => {
 
     render(
       <NasaEarthObservationPanel
-        targetRegions={FLOODWATCH.targetRegions}
+        targetRegions={EO_TEST_REGIONS}
         hasCloudPenetratingPayload={false}
       />
     );

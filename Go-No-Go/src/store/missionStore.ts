@@ -39,32 +39,32 @@ export interface MissionPreset {
 
 export const MISSION_PRESETS: MissionPreset[] = [
   {
-    id: 'preset-floodwatch-nominal-go',
-    name: 'FLOODWATCH Baseline SAR+SWIR (Flight-Ready GO)',
+    id: 'preset-lunar-nominal-go',
+    name: 'Lunar Scout Polar Baseline (Flight-Ready GO)',
     badge: 'RECOMMENDED · GO',
     description:
-      'Balanced ESPA-class SmallSat combining C-Band SAR and Multispectral SWIR in a 550 km Dawn-Dusk SSO orbit with X-Band downlink and green monopropellant.',
-    scenarioId: 'floodwatch-eo-01',
+      'Balanced ESPA-class SmallSat combining a Neutron/Gamma Spectrometer and Thermal IR Imager in a 100 km Lunar Polar orbit with X-Band downlink and Hall-Effect propulsion.',
+    scenarioId: 'lunar-ice-02',
     busId: 'bus-espa-smallsat',
     subsystemIds: {
       SOLAR_ARRAY: 'solar-wings-espa',
       BATTERY: 'batt-liion-650wh',
-      ANTENNA: 'comm-xband-horn',
-      PROPULSION: 'prop-green-monoprop',
+      ANTENNA: 'comm-kaband-hga',
+      PROPULSION: 'prop-hall-xenon',
       THERMAL: 'therm-active-louvers',
       AVIONICS: 'avio-rad750-redundant',
     },
-    instrumentIds: ['inst-sar-cband', 'inst-multispectral-swir'],
-    orbitId: 'orbit-sso-550-dd',
-    launchVehicleId: 'lv-espa-rideshare',
+    instrumentIds: ['inst-neutron-spectrometer', 'inst-thermal-ir'],
+    orbitId: 'orbit-lunar-polar-100',
+    launchVehicleId: 'lv-dedicated-smallsat',
   },
   {
-    id: 'preset-floodwatch-cubesat-optical',
-    name: '6U CubeSat Optical Scout (Cloud-Limited CAUTION/NO-GO)',
+    id: 'preset-cubesat-nogo-demo',
+    name: '6U CubeSat Optical Scout (Constraint-Limited NO-GO)',
     badge: 'BUDGET DEMO · NO-GO',
     description:
-      'Ultra-low-cost 6U CubeSat carrying an Optical RGB camera in 400 km ISS orbit. Demonstrates why optical-only S-band nanosatellites fail monsoon cloud cover and downlink volume gates.',
-    scenarioId: 'floodwatch-eo-01',
+      'Ultra-low-cost 6U CubeSat carrying a daylight-only Optical RGB camera in 400 km LEO. Demonstrates how insufficient payload capability, orbit mismatch, and tight margins trigger a strict NO-GO hold.',
+    scenarioId: 'lunar-ice-02',
     busId: 'bus-cubesat-6u',
     subsystemIds: {
       SOLAR_ARRAY: 'solar-body-6u',
@@ -79,12 +79,12 @@ export const MISSION_PRESETS: MissionPreset[] = [
     launchVehicleId: 'lv-ppod-rideshare',
   },
   {
-    id: 'preset-floodwatch-flagship',
-    name: 'Triana-Class Multi-Sensor Hydrology Observatory',
-    badge: 'HIGH SCIENCE · S-CLASS',
+    id: 'preset-mars-observer-go',
+    name: 'Mars Observer Deep-Space Relay (Flagship GO)',
+    badge: 'DEEP SPACE · GO',
     description:
-      'Medium Observatory carrying C-Band SAR, Ka-Band Interferometric Altimeter, and Ka-band dish in 550 km Dawn-Dusk SSO.',
-    scenarioId: 'floodwatch-eo-01',
+      'Medium Observatory carrying Thermal IR and Multispectral SWIR with a ROSA solar array, Ka-band high-gain dish, and Xenon Hall propulsion in 400 km Martian SSO.',
+    scenarioId: 'mars-areo-03',
     busId: 'bus-medium-observatory',
     subsystemIds: {
       SOLAR_ARRAY: 'solar-wings-deep-space',
@@ -94,9 +94,9 @@ export const MISSION_PRESETS: MissionPreset[] = [
       THERMAL: 'therm-active-louvers',
       AVIONICS: 'avio-rad750-redundant',
     },
-    instrumentIds: ['inst-sar-cband', 'inst-altimeter-kaband'],
-    orbitId: 'orbit-sso-550-dd',
-    launchVehicleId: 'lv-dedicated-smallsat',
+    instrumentIds: ['inst-thermal-ir', 'inst-multispectral-swir'],
+    orbitId: 'orbit-mars-sso-400',
+    launchVehicleId: 'lv-medium-eelv',
   },
 ];
 
@@ -254,7 +254,7 @@ export function resolveMissionEntities(state: ResolveMissionInput): ResolvedMiss
   const scorePreview = evaluateMissionScore({
     scenario,
     difficulty,
-    configurationName: state.configurationName ?? 'FLOODWATCH Flight Config',
+    configurationName: state.configurationName ?? 'GNG-Baseline Spacecraft Config',
     engineering,
     instruments,
   });
@@ -285,7 +285,7 @@ export function resolveMissionEntities(state: ResolveMissionInput): ResolvedMiss
 const defaultPreset = MISSION_PRESETS[0];
 
 export const useMissionStore = create<MissionStoreState>()((set, get) => ({
-  configurationName: 'FLOODWATCH-Alpha Flight Config',
+  configurationName: 'GNG-Baseline Spacecraft Config',
   difficulty: 'STANDARD',
   scenarioId: DEFAULT_SCENARIO_ID,
   busId: defaultPreset.busId,
@@ -379,7 +379,7 @@ export const useMissionStore = create<MissionStoreState>()((set, get) => ({
     clearRecordedEoDatasetUsage();
     clearRecordedWeatherUsage();
     set({
-      configurationName: 'FLOODWATCH-Alpha Flight Config',
+      configurationName: 'GNG-Baseline Spacecraft Config',
       difficulty: 'STANDARD',
       scenarioId: DEFAULT_SCENARIO_ID,
       busId: defaultPreset.busId,

@@ -65,6 +65,8 @@ export const ISO_COUNTRY_OPTIONS: IsoCountryOption[] = [
   { code: 'ZA', name: 'South Africa' },
 ];
 
+export type VerificationStatus = 'PROVISIONAL' | 'VERIFIED' | 'UNVERIFIED';
+
 export interface LeaderboardEntry {
   id: string;
   rank: number;
@@ -85,6 +87,8 @@ export interface LeaderboardEntry {
   completionDurationSec: number;
   dataDownlinkedGb: number;
   regionsMappedCount: number;
+  isVerified?: boolean;
+  verificationStatus?: VerificationStatus;
   achievedAtIso: string;
   isCurrentPlayer?: boolean;
 }
@@ -149,11 +153,14 @@ export interface LeaderboardVerificationTelemetry {
 export interface LeaderboardSubmissionResult {
   ok: boolean;
   offline?: boolean;
+  authWarning?: string;
   entryId?: string;
   verifiedScore?: number;
   bestScore?: number;
   grade?: string;
   outcome?: string;
   isNewPersonalBest?: boolean;
+  isVerified?: boolean;
+  verificationStatus?: VerificationStatus;
   error?: string;
 }

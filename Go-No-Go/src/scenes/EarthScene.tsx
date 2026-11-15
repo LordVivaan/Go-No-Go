@@ -922,7 +922,7 @@ export function EarthScene({
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="inline-block h-2 w-2 rounded-full bg-[#FF5364]" />
-                Flood Basin
+                Target Region
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="inline-block h-2 w-2 bg-[#42D9F5]" />

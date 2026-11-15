@@ -15,7 +15,7 @@ import {
 describe('React Component Tests — 6-Stage Shell, Gate Lock & Leaderboard', () => {
   it('renders structured ValidationFindings with resource configuration links in Dashboard', () => {
     useMissionStore.getState().resetMissionForNewAttempt();
-    useMissionStore.getState().applyPreset('preset-floodwatch-nominal-go');
+    useMissionStore.getState().applyPreset('preset-lunar-nominal-go');
     const { engineering } = resolveMissionEntities(useMissionStore.getState());
 
     render(
@@ -29,7 +29,7 @@ describe('React Component Tests — 6-Stage Shell, Gate Lock & Leaderboard', () 
   });
 
   it('locks launch execution in EngineeringVerification when NO_GO and unlocks when GO', () => {
-    const cubesat = MISSION_PRESETS.find((p) => p.id === 'preset-floodwatch-cubesat-optical')!;
+    const cubesat = MISSION_PRESETS.find((p) => p.id === 'preset-cubesat-nogo-demo')!;
     useMissionStore.getState().applyPreset(cubesat.id);
 
     const { rerender } = render(
@@ -43,7 +43,7 @@ describe('React Component Tests — 6-Stage Shell, Gate Lock & Leaderboard', () 
     expect(screen.queryByRole('button', { name: /INITIATE LAUNCH SEQUENCE/i })).toBeNull();
 
     act(() => {
-      useMissionStore.getState().applyPreset('preset-floodwatch-nominal-go');
+      useMissionStore.getState().applyPreset('preset-lunar-nominal-go');
     });
     rerender(
       <MemoryRouter>
@@ -56,7 +56,7 @@ describe('React Component Tests — 6-Stage Shell, Gate Lock & Leaderboard', () 
   });
 
   it('renders strictly the 6 gameplay stages in AppShell without legacy sidebars or extra pages', () => {
-    useMissionStore.getState().applyPreset('preset-floodwatch-nominal-go');
+    useMissionStore.getState().applyPreset('preset-lunar-nominal-go');
 
     const { container } = render(
       <MemoryRouter initialEntries={['/architecture']}>
@@ -82,7 +82,7 @@ describe('React Component Tests — 6-Stage Shell, Gate Lock & Leaderboard', () 
   });
 
   it('renders International Leaderboard honestly in offline mode without fake entries', async () => {
-    useMissionStore.getState().applyPreset('preset-floodwatch-nominal-go');
+    useMissionStore.getState().applyPreset('preset-lunar-nominal-go');
     const state = useMissionStore.getState();
     const resolved = resolveMissionEntities(state);
 

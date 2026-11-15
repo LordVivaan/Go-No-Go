@@ -80,6 +80,7 @@ export interface Database {
           config_signature: string;
           verification_hash: string;
           is_verified: boolean;
+          verification_status: 'PROVISIONAL' | 'VERIFIED' | 'UNVERIFIED';
           achieved_at: string;
           updated_at: string;
         };

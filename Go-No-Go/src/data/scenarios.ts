@@ -10,7 +10,7 @@ export const DIFFICULTY_PROFILES: Record<MissionDifficulty, DifficultyProfile> =
     label: 'Standard',
     subtitle: 'Class C Baseline',
     description:
-      'Nominal NASA Phase-A margins (15% mass & power), full $95M FLOODWATCH budget cap, and standard solar/weather anomaly frequency.',
+      'Nominal NASA Phase-A margins (15% mass & power), 100% baseline budget cap, and standard solar/weather anomaly frequency.',
     budgetMultiplier: 1.0,
     minMassMarginPct: 15.0,
     minPowerMarginPct: 15.0,
@@ -102,173 +102,6 @@ export function applyDifficultyToScenario(
 }
 
 export const MISSION_SCENARIOS: ScenarioDefinition[] = [
-  {
-    id: 'floodwatch-eo-01',
-    code: 'FLOODWATCH',
-    title: 'Global Flood Disaster Response Observatory',
-    subtitle: 'All-Weather Hydrological & Inundation Monitoring in Sun-Synchronous LEO',
-    celestialBody: 'EARTH',
-    riskClass: 'C',
-    budgetCapMusd: 95.0,
-    developmentCostMusd: 6.5,
-    operationsCostMusd: 3.5,
-    designLifetimeYears: 3.0,
-    simulationDurationDays: 3,
-    solarFluxWPerM2: 1361.0,
-    recommendedOrbitId: 'orbit-sso-550-dd',
-    isPlayable: true,
-    requiredInstrumentTypes: ['SAR', 'MULTISPECTRAL', 'THERMAL_IR'],
-    telemetryConstraints: {
-      minPowerMarginPct: 15,
-      maxEclipseDodPct: 40,
-      minLinkMarginDb: 3.0,
-      minDeltaVMarginPct: 10,
-      dataCompressionRatio: 1.0,
-    },
-    scenarioEvents: [
-      {
-        id: 'evt-fw-monsoon',
-        triggerMetHours: 6,
-        title: 'Peak Monsoon Convective Surge Over Brahmaputra Delta',
-        description: 'Cloud opacity reaches 85%; optical/SWIR acquisitions degraded without active microwave SAR.',
-        subsystem: 'PAYLOAD',
-      },
-      {
-        id: 'evt-fw-pass-peak',
-        triggerMetHours: 18,
-        title: 'High-Rate Polar Ground Pass Queue',
-        description: 'Svalbard X/Ka-band window prioritizes inundation map downlink to civil defense users.',
-        subsystem: 'COMMS',
-      },
-    ],
-    scoringProfile: {
-      scienceWeight: 35,
-      reliabilityWeight: 25,
-      resourceWeight: 15,
-      commsWeight: 15,
-      riskCollabWeight: 10,
-    },
-    briefing: {
-      context:
-        'Catastrophic monsoon and cyclone flooding across major river deltas requires rapid, all-weather inundation mapping. Severe cloud cover (up to 85% opacity) during peak storm events blinds standard optical cameras.',
-      primaryObjective:
-        'Design, validate (CML 1–6), launch, and operate an Earth-observation spacecraft capable of penetrating storm clouds, classifying floodwater extent and turbidity, and downlinking actionable emergency maps within strict mass, power, and NPR 7120.5F cost reserves.',
-      constraintsSummary: [
-        'Total life-cycle cost ≤ $95.0M USD (with 20% Phase B/C hardware & development contingency reserve)',
-        'All-weather cloud-penetrating radar (SAR) or multi-sensor synergy required for monsoon basins',
-        'AIAA S-120A launch mass margin ≥ 15% and SMAD EOL solar power margin ≥ 15%',
-        'X-Band or Ka-Band ground-station downlink with ≥ 3.0 dB Eb/N0 link margin and zero daily SSR backlog',
-        'NASA ODAR 25-year post-mission disposal compliance and Class C ≥ 80% 3-year reliability',
-      ],
-      segments: {
-        LAUNCH:
-          'Select a compatible Rideshare or Dedicated SSO launch vehicle with ≥ 15% wet mass margin and low injection dispersion.',
-        SPACE:
-          'Configure spacecraft bus, deployable GaAs solar arrays, Li-Ion battery bank, active thermal louvers, propulsion, and flood-mapping payload.',
-        GROUND:
-          'Downlink high-volume SAR and multispectral swaths across polar and mid-latitude Near Space Network (NSN) ground stations.',
-        USER:
-          'Deliver low-latency inundation maps to civil defense and hydrological emergency response teams across 4 priority river deltas.',
-      },
-    },
-    targetRegions: [
-      {
-        id: 'basin-brahmaputra',
-        name: 'Brahmaputra-Ganges Delta',
-        latitudeDeg: 23.8,
-        longitudeDeg: 90.4,
-        radiusKm: 420,
-        cloudCoverFraction: 0.85,
-        priorityWeight: 0.35,
-        description:
-          'Persistent monsoon cloud deck (85% opacity); requires active microwave SAR or multi-pass NIR/SWIR.',
-      },
-      {
-        id: 'basin-mekong',
-        name: 'Lower Mekong Floodplain',
-        latitudeDeg: 10.6,
-        longitudeDeg: 105.5,
-        radiusKm: 360,
-        cloudCoverFraction: 0.78,
-        priorityWeight: 0.25,
-        description:
-          'Tropical convective cloud cover; complex wetland-agriculture inundation boundary.',
-      },
-      {
-        id: 'basin-mississippi',
-        name: 'Lower Mississippi Alluvial Valley',
-        latitudeDeg: 32.3,
-        longitudeDeg: -90.9,
-        radiusKm: 380,
-        cloudCoverFraction: 0.45,
-        priorityWeight: 0.20,
-        description: 'Levee overtopping and agricultural soil moisture saturation zone.',
-      },
-      {
-        id: 'basin-danube',
-        name: 'Danube-Tisza Confluence',
-        latitudeDeg: 45.2,
-        longitudeDeg: 19.8,
-        radiusKm: 310,
-        cloudCoverFraction: 0.50,
-        priorityWeight: 0.20,
-        description: 'Mid-latitude spring snowmelt and extreme precipitation corridor.',
-      },
-    ],
-    kpps: [
-      {
-        id: 'kpp-fw-all-weather',
-        name: 'All-Weather Cloud Penetration',
-        metricKey: 'allWeatherCapable',
-        unit: 'bool',
-        thresholdValue: true,
-        goalValue: true,
-        comparison: 'BOOL_TRUE',
-        description:
-          'Payload must include at least one cloud-penetrating radar/altimeter or thermal sensor for monsoon basins.',
-      },
-      {
-        id: 'kpp-fw-revisit',
-        name: 'Mean Basin Revisit Latency',
-        metricKey: 'revisitHours',
-        unit: 'hr',
-        thresholdValue: 24,
-        goalValue: 12,
-        comparison: 'LTE',
-        description: 'Maximum tolerable orbital revisit interval over critical flood basins.',
-      },
-      {
-        id: 'kpp-fw-resolution',
-        name: 'Ground Sample Distance (GSD)',
-        metricKey: 'bestResolutionM',
-        unit: 'm',
-        thresholdValue: 25,
-        goalValue: 8,
-        comparison: 'LTE',
-        description: 'Spatial resolution required to resolve urban levees and river channel breaches.',
-      },
-      {
-        id: 'kpp-fw-downlink',
-        name: 'Daily Downlink Science Volume',
-        metricKey: 'dailyDataGb',
-        unit: 'GB/day',
-        thresholdValue: 20,
-        goalValue: 45,
-        comparison: 'GTE',
-        description: 'Daily science data volume captured and downlinked without SSR overflow.',
-      },
-      {
-        id: 'kpp-fw-reliability',
-        name: '3-Year Mission Reliability',
-        metricKey: 'systemReliability',
-        unit: '%',
-        thresholdValue: 0.80,
-        goalValue: 0.90,
-        comparison: 'GTE',
-        description: 'Combined spacecraft + launch probability of success (NASA Class C standard).',
-      },
-    ],
-  },
   {
     id: 'lunar-ice-02',
     code: 'LUNAR SCOUT',
@@ -594,4 +427,4 @@ export const MISSION_SCENARIOS: ScenarioDefinition[] = [
   },
 ];
 
-export const DEFAULT_SCENARIO_ID = 'floodwatch-eo-01';
+export const DEFAULT_SCENARIO_ID = 'lunar-ice-02';

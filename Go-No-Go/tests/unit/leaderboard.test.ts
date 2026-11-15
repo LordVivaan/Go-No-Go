@@ -188,9 +188,9 @@ describe('International Leaderboard Validation, Offline Integrity & RPC Client',
 
   it('submits verified telemetry to Supabase RPC and queries filtered/paginated standings', async () => {
     mockSupabaseState.configured = true;
-    const baseScenario = MISSION_SCENARIOS.find((s) => s.id === 'floodwatch-eo-01')!;
+    const baseScenario = MISSION_SCENARIOS.find((s) => s.id === 'lunar-ice-02')!;
     const scenario = applyDifficultyToScenario(baseScenario, 'HARD');
-    expect(scenario.budgetCapMusd).toBeLessThan(95);
+    expect(scenario.budgetCapMusd).toBeLessThan(145);
 
     mockRpc.mockResolvedValueOnce({
       data: {

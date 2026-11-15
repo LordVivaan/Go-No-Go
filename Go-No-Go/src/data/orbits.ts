@@ -47,7 +47,7 @@ export const ORBIT_CATALOG: OrbitalParameters[] = [
     solarBetaAngleDeg: 22.0,
     requiredDeltaVReserveMps: 165.0,
     description:
-      'Classic Landsat/MODIS optical & multispectral sun-synchronous orbit. Consistent mid-morning solar illumination angle for optical flood-water reflectance, with regular 34-minute eclipses every orbit.',
+      'Classic Landsat/MODIS optical & multispectral sun-synchronous orbit. Consistent mid-morning solar illumination angle for optical Earth-observation reflectance, with regular 34-minute eclipses every orbit.',
   },
   {
     id: 'orbit-leo-1000-high',

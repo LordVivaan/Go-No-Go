@@ -89,6 +89,10 @@ export function computeLinkDistanceKm(params: {
 
 /**
  * Evaluates full RF Communications Link Budget & Onboard SSR Data Backlog.
+ * For Earth-orbiting missions, evaluates link margin at the antenna's nominal hardware downlink rate.
+ * For cislunar/deep-space missions (MOON, MARS, ASTEROID), models CCSDS/DSN adaptive symbol-rate
+ * throttling derived directly from the link equation C/N0, Eb/N0_req, and requiredLinkMarginDb,
+ * clamped between a 1 kbps (0.001 Mbps) minimum telemetry floor and the hardware max rate.
  */
 export function evaluateDataAndLinkBudget(params: {
   subsystems: SpacecraftComponent[];
@@ -127,7 +131,7 @@ export function evaluateDataAndLinkBudget(params: {
   const freqHz = BAND_FREQUENCY_HZ[rfBand];
   const txPowerW = Math.max(0.01, primaryAntenna.txPowerW ?? 2.0);
   const txGainDbi = primaryAntenna.antennaGainDbi ?? 6.0;
-  const downlinkRateMbps = Math.max(0.001, primaryAntenna.downlinkRateMbps ?? 2.0);
+  const rawDownlinkRateMbps = Math.max(0.001, primaryAntenna.downlinkRateMbps ?? 2.0);
   const lineLossDb = 1.2;
   const pointingLossDb = 0.8;
   const atmLossDb = BAND_ATMOSPHERIC_LOSS_DB[rfBand];
@@ -155,18 +159,30 @@ export function evaluateDataAndLinkBudget(params: {
     referenceStation.gOverTDbPerK + 10 * Math.log10(ASSUMED_GROUND_SYSTEM_NOISE_TEMP_K);
   const receivedPowerDbw = eirpDbw - fsplDb - atmLossDb - pointingLossDb + rxGainEstDbi;
 
-  // Eb/N0_rcvd (dB) = EIRP - FSPL - L_atm - L_point + (G/T)_rx - 10 log10(k_B) - 10 log10(R_bps)
-  const dataRateBps = downlinkRateMbps * 1e6;
-  const ebN0ReceivedDb =
+  // Carrier-to-noise-density ratio C/N0 (dB-Hz) = EIRP - FSPL - L_atm - L_point + (G/T)_rx - k_B
+  const cOverN0DbHz =
     eirpDbw -
     fsplDb -
     atmLossDb -
     pointingLossDb +
     referenceStation.gOverTDbPerK -
-    BOLTZMANN_DBW_PER_K_HZ -
-    10 * Math.log10(dataRateBps);
+    BOLTZMANN_DBW_PER_K_HZ;
 
   const ebN0RequiredDb = 9.6; // Uncoded/lightly-coded QPSK BER 1e-5 benchmark threshold
+
+  // For deep-space missions, derive the maximum sustainable symbol rate from C/N0 and target margin,
+  // bounded below by a 1 kbps (0.001 Mbps) minimum telemetry floor and above by the hardware max rate.
+  const maxClosedRateMbps =
+    Math.pow(10, (cOverN0DbHz - (ebN0RequiredDb + requiredLinkMarginDb)) / 10) / 1e6;
+  const throttledMbps = Math.floor(maxClosedRateMbps * 10000) / 10000;
+  const downlinkRateMbps =
+    celestialBody === 'EARTH'
+      ? rawDownlinkRateMbps
+      : Math.max(0.001, Math.min(rawDownlinkRateMbps, throttledMbps));
+
+  // Eb/N0_rcvd (dB) = C/N0 - 10 log10(R_bps)
+  const dataRateBps = downlinkRateMbps * 1e6;
+  const ebN0ReceivedDb = cOverN0DbHz - 10 * Math.log10(dataRateBps);
   const linkMarginDb = ebN0ReceivedDb - ebN0RequiredDb;
 
   // Theoretical Shannon-Hartley AWGN channel capacity ceiling assuming reference bandwidth B = R_b (1 Hz/bps):

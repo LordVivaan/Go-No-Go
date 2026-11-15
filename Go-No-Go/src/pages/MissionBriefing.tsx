@@ -12,13 +12,28 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { FloodBasinWeatherPanel } from '../components/FloodBasinWeatherPanel';
+import { EarthEnvironmentalWeatherPanel } from '../components/FloodBasinWeatherPanel';
 import { NasaEarthObservationPanel } from '../components/NasaEarthObservationPanel';
 import { DIFFICULTY_PROFILES, MISSION_SCENARIOS } from '../data/scenarios';
 import { EarthScene } from '../scenes/EarthScene';
 import { MISSION_PRESETS, useMissionStore, useResolvedMission } from '../store/missionStore';
-import type { MissionDifficulty } from '../types/mission';
-import { isFloodwatchBasinId, type FloodwatchBasinId } from '../types/weather';
+import type { MissionDifficulty, TargetRegion } from '../types/mission';
+import {
+  FLOODWATCH_WEATHER_BASINS,
+  isFloodwatchBasinId,
+  type FloodwatchBasinId,
+} from '../types/weather';
+
+const EARTH_REFERENCE_REGIONS: TargetRegion[] = FLOODWATCH_WEATHER_BASINS.map((b) => ({
+  id: b.id,
+  name: b.name,
+  latitudeDeg: b.lat,
+  longitudeDeg: b.lon,
+  radiusKm: 360,
+  cloudCoverFraction: b.baselineCloudCoverFraction,
+  priorityWeight: 0.25,
+  description: b.regionLabel,
+}));
 
 const DIFFICULTY_KEYS: MissionDifficulty[] = ['STANDARD', 'HARD', 'EXPERT'];
 
@@ -90,17 +105,33 @@ export function MissionBriefing() {
 
             <div className="mt-3">
               <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
-                {scenario.code}: {scenario.title}
+                GO / NO-GO
               </h1>
               <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-cyan-300/90">
                 Design. Validate. Launch. · Every decision determines the mission.
               </p>
-              <p className="mt-2.5 text-sm leading-relaxed text-slate-300">
-                {scenario.briefing.primaryObjective}
+              <p className="mt-2 text-xs leading-relaxed text-slate-300">
+                Interactive spacecraft mission engineering and flight-readiness simulator. Trade
+                bus architectures, payloads, orbits, and launch vehicles across six integrated
+                stages—from systems verification and strict NO-GO launch locks to deterministic
+                orbital operations and mission debrief.
               </p>
-              <p className="mt-1 text-xs leading-relaxed text-slate-400">
-                {scenario.briefing.context}
-              </p>
+              <div className="mt-3 rounded-xl border border-white/10 bg-black/30 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-cyan-300">
+                    Active Scenario · {scenario.code}
+                  </span>
+                  <span className="font-mono text-[10px] text-slate-400">
+                    {scenario.celestialBody} · {scenario.title}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate-200">
+                  {scenario.briefing.primaryObjective}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                  {scenario.briefing.context}
+                </p>
+              </div>
             </div>
 
             {/* Difficulty Selection (materially alters margins, cost cap & anomaly stress) */}
@@ -239,26 +270,26 @@ export function MissionBriefing() {
                 <ArrowRight className="h-4 w-4" />
               </button>
 
-              {scenario.celestialBody === 'EARTH' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setShowNasaModal(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10"
-                  >
-                    <Droplets className="h-3.5 w-3.5 text-cyan-300" />
-                    Inspect Satellite EO Imagery
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowWeatherModal(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-[#42D9F5]/30 bg-[#42D9F5]/10 px-3.5 py-2 text-xs font-semibold text-[#42D9F5] transition hover:bg-[#42D9F5]/20"
-                  >
-                    <CloudRain className="h-3.5 w-3.5" />
-                    Basin Weather
-                  </button>
-                </>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNasaModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10"
+                  title="Optional terrestrial Earth-observation reference imagery (Planetary Computer & NASA GIBS)"
+                >
+                  <Droplets className="h-3.5 w-3.5 text-cyan-300" />
+                  EO Imagery Reference
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowWeatherModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#42D9F5]/30 bg-[#42D9F5]/10 px-3 py-2 text-xs font-semibold text-[#42D9F5] transition hover:bg-[#42D9F5]/20"
+                  title="Optional terrestrial Earth weather reference (Meteomatics)"
+                >
+                  <CloudRain className="h-3.5 w-3.5" />
+                  Earth Weather Reference
+                </button>
+              </div>
             </div>
           </section>
 
@@ -300,7 +331,15 @@ export function MissionBriefing() {
 
             <div className="mt-4 border-t border-white/10 pt-3">
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-300">
-                <Target className="h-4 w-4" /> Flood Monitoring Zones ({scenario.targetRegions.length})
+                <Target className="h-4 w-4" />{' '}
+                {scenario.celestialBody === 'MOON'
+                  ? 'Lunar Target Regions'
+                  : scenario.celestialBody === 'MARS'
+                    ? 'Martian Target Regions'
+                    : scenario.celestialBody === 'ASTEROID'
+                      ? 'Asteroid Target Zones'
+                      : 'Target Observation Zones'}{' '}
+                ({scenario.targetRegions.length})
               </div>
               <div className="mt-2 space-y-1.5">
                 {scenario.targetRegions.map((region) => (
@@ -367,34 +406,38 @@ export function MissionBriefing() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <NasaEarthObservationPanel targetRegions={scenario.targetRegions} />
+            <NasaEarthObservationPanel
+              targetRegions={
+                scenario.celestialBody === 'EARTH' ? scenario.targetRegions : EARTH_REFERENCE_REGIONS
+              }
+            />
           </div>
         </div>
       )}
 
-      {/* Expandable FLOODWATCH Meteomatics Basin Weather Modal */}
+      {/* Expandable Earth-Observation Meteomatics Environmental Weather Modal */}
       {showWeatherModal && (
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="FLOODWATCH Basin Weather Context"
+          aria-label="Earth-Observation Environmental Weather Context"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
         >
           <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-white/15 bg-[#070f20] p-4 shadow-2xl sm:p-5">
             <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-2.5">
               <h2 className="text-sm font-bold text-slate-100">
-                FLOODWATCH Environmental Weather Context (Meteomatics Mix · Same-Origin /api/weather)
+                Earth-Observation Environmental Weather Context (Meteomatics Mix · Same-Origin /api/weather)
               </h2>
               <button
                 type="button"
                 onClick={() => setShowWeatherModal(false)}
                 className="rounded-lg border border-white/10 bg-white/5 p-1.5 text-slate-300 hover:bg-white/10"
-                aria-label="Close basin weather modal"
+                aria-label="Close environmental weather modal"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <FloodBasinWeatherPanel
+            <EarthEnvironmentalWeatherPanel
               initialBasinId={weatherBasinId}
               hasCloudPenetratingPayload={hasCloudPenetrating}
             />

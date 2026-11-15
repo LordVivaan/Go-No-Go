@@ -725,4 +725,108 @@ describe('GO / NO-GO Aerospace Engineering Engine — Unit Verification', () => 
     expect(rel.subsystemReliability).toBeCloseTo(0.96, 2);
     expect(rel.subsystemReliability).toBeLessThan(0.965);
   });
+
+  it('communications: derives physically consistent FSPL, link margin, and adaptive symbol rate across LEO, Lunar, Asteroid, and Mars links', () => {
+    const kaHga: SpacecraftComponent = {
+      id: 'ka-hga-test',
+      name: 'Ka-Band Parabolic Dish',
+      category: 'ANTENNA',
+      compatibleFormFactors: ['SMALLSAT', 'ESPA'],
+      massKg: 8.6,
+      powerDrawW: 45,
+      rfBand: 'KA_BAND',
+      txPowerW: 28,
+      antennaGainDbi: 36,
+      downlinkRateMbps: 600,
+      costMusd: 6.8,
+      trl: 8,
+      reliability3Yr: 0.993,
+      isRedundant: true,
+      description: 'Test Ka-band HGA',
+    };
+    const sBandPatch: SpacecraftComponent = {
+      ...kaHga,
+      id: 'sband-patch-test',
+      rfBand: 'S_BAND',
+      txPowerW: 4,
+      antennaGainDbi: 6.5,
+      downlinkRateMbps: 4,
+    };
+    const dsnStation: GroundStation = {
+      ...mockGroundStation,
+      id: 'dsn-test',
+      supportedBands: ['S_BAND', 'X_BAND', 'KA_BAND'],
+      gOverTDbPerK: 54.0,
+      avgPassDurationSec: 1800,
+    };
+
+    const leoOrb = evaluateOrbitalMechanics(mockSsoOrbit);
+    const leoLink = evaluateDataAndLinkBudget({
+      subsystems: [kaHga],
+      instruments: [mockSarInstrument],
+      orbital: leoOrb,
+      groundStations: [mockGroundStation],
+      celestialBody: 'EARTH',
+    });
+    expect(leoLink.fsplDb).toBeGreaterThan(170);
+    expect(leoLink.linkMarginDb).toBeGreaterThan(10);
+
+    const lunarOrb = evaluateOrbitalMechanics({
+      ...mockSsoOrbit,
+      regime: 'LUNAR_POLAR',
+      celestialBody: 'MOON',
+      altitudePerigeeKm: 100,
+      altitudeApogeeKm: 100,
+      inclinationDeg: 89.5,
+    });
+    const lunarKa = evaluateDataAndLinkBudget({
+      subsystems: [kaHga],
+      instruments: [mockSarInstrument],
+      orbital: lunarOrb,
+      groundStations: [dsnStation],
+      celestialBody: 'MOON',
+    });
+    expect(lunarKa.slantRangeKm).toBeGreaterThan(380000);
+    expect(lunarKa.fsplDb).toBeGreaterThan(230);
+    expect(lunarKa.linkMarginDb).toBeCloseTo(3.0, 1);
+    expect(lunarKa.downlinkCapacityPerDayGb).toBeGreaterThan(50);
+
+    const asteroidOrb = evaluateOrbitalMechanics({
+      ...mockSsoOrbit,
+      regime: 'ASTEROID_PROXIMITY',
+      celestialBody: 'ASTEROID',
+      altitudePerigeeKm: 1.0,
+      altitudeApogeeKm: 1.5,
+      inclinationDeg: 85.0,
+    });
+    const asteroidKa = evaluateDataAndLinkBudget({
+      subsystems: [kaHga],
+      instruments: [mockSarInstrument],
+      orbital: asteroidOrb,
+      groundStations: [dsnStation],
+      celestialBody: 'ASTEROID',
+    });
+    expect(asteroidKa.fsplDb).toBeGreaterThan(lunarKa.fsplDb + 30);
+    expect(asteroidKa.downlinkCapacityPerDayGb).toBeLessThan(1.0);
+
+    // At Mars mean distance (225M km), weak S-band patch cannot close even at 1 kbps floor -> negative link margin NO_GO
+    const marsOrb = evaluateOrbitalMechanics({
+      ...mockSsoOrbit,
+      regime: 'MARS_SSO',
+      celestialBody: 'MARS',
+      altitudePerigeeKm: 400,
+      altitudeApogeeKm: 400,
+      inclinationDeg: 93.0,
+    });
+    const marsSband = evaluateDataAndLinkBudget({
+      subsystems: [sBandPatch],
+      instruments: [mockSarInstrument],
+      orbital: marsOrb,
+      groundStations: [dsnStation],
+      celestialBody: 'MARS',
+    });
+    expect(marsSband.fsplDb).toBeGreaterThan(260);
+    expect(marsSband.linkMarginDb).toBeLessThan(0);
+    expect(marsSband.status).toBe('NO_GO');
+  });
 });

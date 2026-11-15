@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test.describe('GO / NO-GO — 6-Stage FLOODWATCH End-to-End Mission Flow', () => {
+test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
   test('executes full 6-stage flow including difficulty scaling, NO-GO launch block, GO recovery, 24h flight ops, debrief leaderboard & new attempt', async ({
     page,
   }) => {
@@ -31,11 +31,11 @@ test.describe('GO / NO-GO — 6-Stage FLOODWATCH End-to-End Mission Flow', () =>
     await expect(page.locator('canvas').first()).toBeVisible();
     await expect(page.getByTestId('shell-gate-status')).toContainText('GO');
 
-    // Switch difficulty to HARD -> cost cap drops to $87.4M, then back to STANDARD
+    // Switch difficulty to HARD -> cost cap drops from $145.0M to $133.4M, then back to STANDARD
     await page.getByRole('radio', { name: /Hard/i }).click();
-    await expect(page.getByText('$87.4M', { exact: true })).toBeVisible();
+    await expect(page.getByText('$133.4M', { exact: true })).toBeVisible();
     await page.getByRole('radio', { name: /Standard/i }).click();
-    await expect(page.getByText('$95.0M', { exact: true })).toBeVisible();
+    await expect(page.getByText('$145.0M', { exact: true })).toBeVisible();
 
     await page.screenshot({ path: '/tmp/gng-e2e-stage1-briefing.png' });
 
@@ -70,7 +70,7 @@ test.describe('GO / NO-GO — 6-Stage FLOODWATCH End-to-End Mission Flow', () =>
     // Recover spacecraft via Stage 2 Baseline GO preset
     await page.getByRole('link', { name: /RESOLVE IN ARCHITECTURE/i }).click();
     await expect(page).toHaveURL(/\/architecture/);
-    await page.getByRole('button', { name: /FLOODWATCH Baseline SAR\+SWIR/i }).click();
+    await page.getByRole('button', { name: /Lunar Scout Polar Baseline/i }).click();
     await expect(page.getByTestId('shell-gate-status')).toContainText('GO');
 
     // Return to Stage 4 -> Launch Transition Overlay -> Stage 5 Operations
@@ -230,26 +230,24 @@ test.describe('GO / NO-GO — 6-Stage FLOODWATCH End-to-End Mission Flow', () =>
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
 
-    // Stage 1: Inspect Satellite EO Imagery modal
-    await page.getByRole('button', { name: /Inspect Satellite EO Imagery/i }).click();
+    // Stage 1: Inspect Supporting Earth-Observation Reference Imagery modal
+    await page.getByRole('button', { name: /EO Imagery Reference/i }).click();
     await expect(page.getByRole('dialog', { name: /Earth Observation Reference Data/i })).toBeVisible();
     await expect(page.getByText('S1D_IW_GRDH_1SDV_E2E_TEST_rtc')).toBeVisible();
     await expect(page.getByText('S2A_MSIL2A_E2E_TEST')).toBeVisible();
     await expect(page.getByText(/83.9% \(eo:cloud_cover\)/i)).toBeVisible();
     await page.getByRole('button', { name: /Close EO imagery modal/i }).click();
 
-    // Stage 4 -> Stage 5 -> Inspect EO Scene -> Stage 6 Debrief provenance
-    await page.goto('/verification');
+    // Stage 4 -> Stage 5 -> Stage 6 Debrief provenance (Lunar mission does NOT show Earth EO button in Operations)
+    await page
+      .locator('nav[aria-label="Mission Gameplay Stages"]')
+      .getByRole('link', { name: /04.*Verification/i })
+      .click();
+    await expect(page).toHaveURL(/\/verification/);
     await page.getByRole('button', { name: /INITIATE LAUNCH SEQUENCE/i }).click();
     await page.getByRole('button', { name: /Enter Mission Operations/i }).click();
     await expect(page).toHaveURL(/\/operations/);
-
-    await page.getByRole('button', { name: /EO Scene/i }).click();
-    await expect(
-      page.getByRole('dialog', { name: /Orbital Operations Earth Observation Context/i })
-    ).toBeVisible();
-    await expect(page.getByText('S1D_IW_GRDH_1SDV_E2E_TEST_rtc')).toBeVisible();
-    await page.getByRole('button', { name: /Close EO scene modal/i }).click();
+    await expect(page.getByRole('button', { name: /EO Scene/i })).toHaveCount(0);
 
     await page.getByRole('button', { name: /COMPLETE & DEBRIEF/i }).click();
     await expect(page).toHaveURL(/\/debrief/);
@@ -358,9 +356,9 @@ test.describe('GO / NO-GO — 6-Stage FLOODWATCH End-to-End Mission Flow', () =>
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
 
-    // Stage 1: Open Basin Weather modal and inspect Current + Forecast + Fallback
-    await page.getByRole('button', { name: /Basin Weather/i }).click();
-    await expect(page.getByRole('dialog', { name: /FLOODWATCH Basin Weather Context/i })).toBeVisible();
+    // Stage 1: Open Supporting Earth Weather Reference modal and inspect Current + Forecast + Fallback
+    await page.getByRole('button', { name: /Earth Weather Reference/i }).click();
+    await expect(page.getByRole('dialog', { name: /Earth-Observation Environmental Weather Context/i })).toBeVisible();
     await expect(page.getByText('11.2 mm')).toBeVisible();
     await expect(page.getByText('CURRENT ANALYSIS')).toBeVisible();
 
@@ -369,20 +367,18 @@ test.describe('GO / NO-GO — 6-Stage FLOODWATCH End-to-End Mission Flow', () =>
 
     await page.getByRole('button', { name: /Danube-Tisza Confluence/i }).click();
     await expect(page.getByText(/Fallback State · UNCONFIGURED/i)).toBeVisible();
-    await page.getByRole('button', { name: /Close basin weather modal/i }).click();
+    await page.getByRole('button', { name: /Close environmental weather modal/i }).click();
 
-    // Stage 4 -> Stage 5 -> Operations Weather -> Stage 6 Debrief provenance
-    await page.goto('/verification');
+    // Stage 4 -> Stage 5 -> Stage 6 Debrief provenance (Lunar operations must NOT display terrestrial weather)
+    await page
+      .locator('nav[aria-label="Mission Gameplay Stages"]')
+      .getByRole('link', { name: /04.*Verification/i })
+      .click();
+    await expect(page).toHaveURL(/\/verification/);
     await page.getByRole('button', { name: /INITIATE LAUNCH SEQUENCE/i }).click();
     await page.getByRole('button', { name: /Enter Mission Operations/i }).click();
     await expect(page).toHaveURL(/\/operations/);
-
-    await page.getByRole('button', { name: /^Weather$/i }).click();
-    await expect(
-      page.getByRole('dialog', { name: /Orbital Operations Basin Weather Context/i }),
-    ).toBeVisible();
-    await expect(page.getByText('11.2 mm')).toBeVisible();
-    await page.getByRole('button', { name: /Close operations weather modal/i }).click();
+    await expect(page.getByRole('button', { name: /^Weather$/i })).toHaveCount(0);
 
     await page.getByRole('button', { name: /COMPLETE & DEBRIEF/i }).click();
     await expect(page).toHaveURL(/\/debrief/);

@@ -9,11 +9,11 @@ import {
 } from '../../src/store/missionStore';
 
 describe('GO / NO-GO Phase 3 — CML 1–6 Validation Gate, Findings, Scoring & Store', () => {
-  it('validates the default FLOODWATCH SAR+SWIR preset as Flight-Ready GO (CML 6) with 35/25/15/15/10 normalized score', () => {
+  it('validates the default LUNAR SCOUT baseline preset as Flight-Ready GO (CML 6) with 35/25/15/15/10 normalized score', () => {
     const state = useMissionStore.getState();
     const resolved = resolveMissionEntities(state);
 
-    expect(resolved.scenario.code).toBe('FLOODWATCH');
+    expect(resolved.scenario.code).toBe('LUNAR SCOUT');
     expect(resolved.engineering.validation.overallStatus).toBe('GO');
     expect(resolved.engineering.validation.achievedCmlLevel).toBe(6);
     expect(resolved.engineering.validation.checklist).toHaveLength(7);
@@ -40,7 +40,7 @@ describe('GO / NO-GO Phase 3 — CML 1–6 Validation Gate, Findings, Scoring & 
 
   it('flags the 6U CubeSat optical-only preset as NO-GO with failure cap and clear findings', () => {
     const cubesatPreset = MISSION_PRESETS.find(
-      (p) => p.id === 'preset-floodwatch-cubesat-optical'
+      (p) => p.id === 'preset-cubesat-nogo-demo'
     )!;
     const resolved = resolveMissionEntities({
       ...cubesatPreset,
@@ -54,7 +54,7 @@ describe('GO / NO-GO Phase 3 — CML 1–6 Validation Gate, Findings, Scoring & 
     const scienceItem = resolved.engineering.validation.checklist.find(
       (c) => c.id === 'chk-cml1-science'
     )!;
-    expect(scienceItem.status).toBe('CAUTION');
+    expect(scienceItem.status).toBe('NO_GO');
 
     const commItem = resolved.engineering.validation.checklist.find(
       (c) => c.id === 'chk-cml4-comms'
@@ -68,28 +68,28 @@ describe('GO / NO-GO Phase 3 — CML 1–6 Validation Gate, Findings, Scoring & 
 
   it('enforces MissionDifficulty rules, supports elliptical orbits, and resets cleanly for new attempts', () => {
     const store = useMissionStore.getState();
-    store.applyPreset('preset-floodwatch-nominal-go');
+    store.applyPreset('preset-lunar-nominal-go');
 
     store.setDifficulty('STANDARD');
     const stdResolved = resolveMissionEntities(useMissionStore.getState());
-    expect(stdResolved.scenario.budgetCapMusd).toBe(95);
+    expect(stdResolved.scenario.budgetCapMusd).toBe(145);
     expect(stdResolved.engineering.validation.overallStatus).toBe('GO');
 
     store.setDifficulty('EXPERT');
     const expertResolved = resolveMissionEntities(useMissionStore.getState());
-    expect(expertResolved.scenario.budgetCapMusd).toBe(80.8);
+    expect(expertResolved.scenario.budgetCapMusd).toBe(123.3);
     expect(expertResolved.engineering.budget.contingencyReserveMusd).toBeLessThan(
       stdResolved.engineering.budget.contingencyReserveMusd
     );
 
     // Custom circular -> elliptical orbit tuning
-    store.setCustomOrbitParams(500, 97.4, 500);
+    store.setCustomOrbitParams(100, 89.5, 100);
     const circularResolved = resolveMissionEntities(useMissionStore.getState());
     expect(circularResolved.engineering.orbital.eccentricity).toBeCloseTo(0, 5);
 
-    store.setCustomOrbitParams(500, 97.4, 1500);
+    store.setCustomOrbitParams(100, 89.5, 800);
     const ellipticalResolved = resolveMissionEntities(useMissionStore.getState());
-    expect(ellipticalResolved.orbit.altitudeApogeeKm).toBe(1500);
+    expect(ellipticalResolved.orbit.altitudeApogeeKm).toBe(800);
     expect(ellipticalResolved.engineering.orbital.eccentricity).toBeGreaterThan(0.05);
 
     // Reset restores STANDARD difficulty and clean baseline configuration
@@ -144,13 +144,12 @@ describe('GO / NO-GO Phase 3 — CML 1–6 Validation Gate, Findings, Scoring & 
     );
   });
 
-  it('supports data-driven switching across FLOODWATCH, LUNAR SCOUT, MARS OBSERVER, and ASTEROID EXPLORER', () => {
+  it('supports data-driven switching across LUNAR SCOUT, MARS OBSERVER, and ASTEROID EXPLORER', () => {
     const store = useMissionStore.getState();
     const initialScenarioId = store.scenarioId;
 
     const codes = MISSION_SCENARIOS.map((s) => s.code);
     expect(codes).toEqual([
-      'FLOODWATCH',
       'LUNAR SCOUT',
       'MARS OBSERVER',
       'ASTEROID EXPLORER',

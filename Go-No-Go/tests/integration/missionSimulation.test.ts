@@ -4,7 +4,7 @@ import { evaluateMissionScore } from '../../src/engine/scoring';
 import { resolveMissionEntities, useMissionStore } from '../../src/store/missionStore';
 import { useSimulationStore } from '../../src/store/simulationStore';
 
-describe('GO / NO-GO Phase 5 & 6 — Deterministic FLOODWATCH Orbital Simulation & Operations', () => {
+describe('GO / NO-GO Phase 5 & 6 — Deterministic Orbital Simulation & Operations', () => {
   it('produces reproducible random sequences from Mulberry32 seeded PRNG', () => {
     const rngA = createSeededRng(20261114);
     const rngB = createSeededRng(20261114);
@@ -16,7 +16,7 @@ describe('GO / NO-GO Phase 5 & 6 — Deterministic FLOODWATCH Orbital Simulation
 
   it('keeps fixed-timestep simulation invariant across 1x vs batched elapsed seconds', () => {
     useMissionStore.getState().resetMissionForNewAttempt();
-    useMissionStore.getState().applyPreset('preset-floodwatch-nominal-go');
+    useMissionStore.getState().applyPreset('preset-lunar-nominal-go');
 
     // Run A: 120 small steps of 30s (3600s simulated)
     useSimulationStore.getState().initializeSimulation(20261114);
@@ -40,29 +40,29 @@ describe('GO / NO-GO Phase 5 & 6 — Deterministic FLOODWATCH Orbital Simulation
 
   it('reduces power demand and data capture when an instrument is toggled off in orbit', () => {
     useMissionStore.getState().resetMissionForNewAttempt();
-    useMissionStore.getState().applyPreset('preset-floodwatch-nominal-go');
+    useMissionStore.getState().applyPreset('preset-lunar-nominal-go');
 
     // Baseline all instruments active for 1 hour
     useSimulationStore.getState().initializeSimulation(20261114);
     useSimulationStore.getState().fastForwardSimulationHours(1, 60);
     const allActiveTelemetry = useSimulationStore.getState().currentTelemetry;
 
-    // Toggle SAR payload off from T=0 and compare 1 hour
+    // Toggle Thermal IR payload off from T=0 and compare 1 hour
     useSimulationStore.getState().initializeSimulation(20261114);
-    useSimulationStore.getState().toggleInstrumentActive('inst-sar-cband');
+    useSimulationStore.getState().toggleInstrumentActive('inst-thermal-ir');
     useSimulationStore.getState().fastForwardSimulationHours(1, 60);
-    const sarDisabledTelemetry = useSimulationStore.getState().currentTelemetry;
+    const thermalDisabledTelemetry = useSimulationStore.getState().currentTelemetry;
 
-    expect(sarDisabledTelemetry.cumulativeDataCapturedGb).toBeLessThan(
+    expect(thermalDisabledTelemetry.cumulativeDataCapturedGb).toBeLessThan(
       allActiveTelemetry.cumulativeDataCapturedGb
     );
-    expect(sarDisabledTelemetry.powerLoadW).toBeLessThan(allActiveTelemetry.powerLoadW);
+    expect(thermalDisabledTelemetry.powerLoadW).toBeLessThan(allActiveTelemetry.powerLoadW);
   });
 
-  it('propagates 72h FLOODWATCH orbital simulation deterministically and generates an authentic S/A report', () => {
+  it('propagates 72h orbital simulation deterministically and generates an authentic S/A report', () => {
     const missionStore = useMissionStore.getState();
     missionStore.resetMissionForNewAttempt();
-    missionStore.applyPreset('preset-floodwatch-nominal-go');
+    missionStore.applyPreset('preset-lunar-nominal-go');
 
     const simStore = useSimulationStore.getState();
     simStore.initializeSimulation(20261114);
@@ -100,7 +100,7 @@ describe('GO / NO-GO Phase 5 & 6 — Deterministic FLOODWATCH Orbital Simulation
 
   it('applies MISSION_LOSS cap (max 40 pts, Grade F) on battery exhaustion failure', () => {
     const missionStore = useMissionStore.getState();
-    missionStore.applyPreset('preset-floodwatch-nominal-go');
+    missionStore.applyPreset('preset-lunar-nominal-go');
     const resolved = resolveMissionEntities(useMissionStore.getState());
 
     const failedReport = evaluateMissionScore({

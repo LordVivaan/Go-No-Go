@@ -1,58 +1,32 @@
-import type { EvaluationBasis } from '../data/nasaReferences';
 import type { EngineeringSummary } from './engineering';
 import type { MissionDifficulty, ScenarioDefinition } from './mission';
 import type { LaunchVehicle, OrbitalParameters, ScientificInstrument, SpacecraftComponent } from './spacecraft';
 
-export interface EvaluationDeduction {
-  criterion: string;
-  category: 'science' | 'reliability' | 'resource_efficiency' | 'data_comms' | 'risk_management';
-  status: 'ASSESSED' | 'NOT_ASSESSED';
-  maxPoints: number;
-  pointsAwarded: number;
-  pointsDeducted: number;
-  severity: 'CRITICAL' | 'MAJOR' | 'MINOR' | 'INFO';
-  observedValue: string;
-  expectedValueOrLimit: string;
-  unit: string;
-  evidence: string;
-  technicalExplanation: string;
-  consequence: string;
+export type AiCategoryKey =
+  | 'science'
+  | 'reliability'
+  | 'resourceEfficiency'
+  | 'communications'
+  | 'riskManagement';
+
+export interface AiCategoryScores {
+  science: number; // 0-35
+  reliability: number; // 0-25
+  resourceEfficiency: number; // 0-15
+  communications: number; // 0-15
+  riskManagement: number; // 0-10
+}
+
+export interface AiDeductionItem {
+  category: AiCategoryKey;
+  points: number;
+  finding: string;
+  engineeringImpact: string;
   recommendedCorrection: string;
-  tradeOffs: string;
-  basis: EvaluationBasis;
-  nasaReferenceCode: string | null;
-  nasaReferenceVersion: string | null;
-  nasaReferenceUrl: string | null;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 }
 
-export interface AiCategoryEvaluation {
-  weight: number;
-  score: number; // 0-100
-  weightedPoints: number;
-  strengths: string[];
-  deductions: EvaluationDeduction[];
-}
-
-export interface AiEngineeringRecommendation {
-  title: string;
-  whatFailed: string;
-  whyItFailed: string;
-  rootCause: string;
-  recommendedChange: string;
-  targetComponentOrParameter: string;
-  suggestedParameterRange: string;
-  tradeOff: string;
-  verificationToRepeat: string;
-}
-
-export interface AiNasaReferenceCitation {
-  code: string;
-  title: string;
-  version: string;
-  url: string;
-  basis: EvaluationBasis;
-  relevance: string;
-}
+export type AiAssessment = 'GO' | 'CAUTION' | 'NO-GO';
 
 export interface AiMissionEvaluationReport {
   evaluationId: string;
@@ -60,23 +34,28 @@ export interface AiMissionEvaluationReport {
   model: string;
   snapshotHash: string;
   overallScore: number;
-  outcome: 'SUCCESS' | 'PARTIAL_SUCCESS' | 'MISSION_LOSS';
-  executiveSummary: string;
-  categories: {
-    science: AiCategoryEvaluation;
-    reliability: AiCategoryEvaluation;
-    resource_efficiency: AiCategoryEvaluation;
-    data_comms: AiCategoryEvaluation;
-    risk_management: AiCategoryEvaluation;
-  };
+  categoryScores: AiCategoryScores;
+  assessment: AiAssessment;
+  summary: string;
+  strengths: string[];
+  deductions: AiDeductionItem[];
   criticalFailures: string[];
-  minorFindings: string[];
-  engineeringRecommendations: AiEngineeringRecommendation[];
-  nasaReferences: AiNasaReferenceCitation[];
-  missionSuccesses: string[];
-  missionLimitations: string[];
+  engineeringRationale: string[];
+  limitations: string[];
+  educationalDisclaimer: string;
   evaluatedAtIso: string;
   cached?: boolean;
+}
+
+export interface DeterministicScoreReference {
+  totalScore: number;
+  scienceScore: number;
+  completionReliabilityScore: number;
+  resourceEfficiencyScore: number;
+  dataCommsScore: number;
+  riskCollabScore: number;
+  outcome: 'SUCCESS' | 'PARTIAL_SUCCESS' | 'MISSION_LOSS';
+  grade: 'S' | 'A' | 'B' | 'C' | 'D' | 'F';
 }
 
 export interface OperationsPlanConfig {
@@ -142,4 +121,5 @@ export interface MissionEvaluationRequestPayload {
     batteryExhausted: boolean;
     eventsLog: string[];
   };
+  deterministicScore: DeterministicScoreReference;
 }

@@ -10,7 +10,7 @@ interface PagesFunctionContext<Env = unknown> {
 
 /**
  * Cloudflare Pages Function handling POST /api/evaluate-mission.
- * Reads OPENAI_API_KEY and optional OPENAI_MODEL strictly from context.env.
+ * Reads GEMINI_API_KEY and optional GEMINI_MODEL strictly from context.env.
  */
 export async function onRequestPost(
   context: PagesFunctionContext<EvaluateMissionRuntimeEnv>

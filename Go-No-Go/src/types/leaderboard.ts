@@ -77,6 +77,15 @@ export interface LeaderboardEntry {
   seasonCode: string;
   configurationName: string;
   totalScore: number;
+  aiScore?: number | null;
+  deterministicScore?: number | null;
+  aiCategoryScores?: {
+    science: number;
+    reliability: number;
+    resourceEfficiency: number;
+    communications: number;
+    riskManagement: number;
+  } | null;
   scienceScore: number;
   reliabilityScore: number;
   efficiencyScore: number;
@@ -89,6 +98,9 @@ export interface LeaderboardEntry {
   regionsMappedCount: number;
   isVerified?: boolean;
   verificationStatus?: VerificationStatus;
+  evaluationId?: string | null;
+  evaluationVersion?: string | null;
+  evaluationModel?: string | null;
   achievedAtIso: string;
   isCurrentPlayer?: boolean;
 }

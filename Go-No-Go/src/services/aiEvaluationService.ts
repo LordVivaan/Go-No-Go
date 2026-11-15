@@ -16,10 +16,12 @@ import type {
 export interface AiEvaluationError {
   code:
     | 'EVALUATION_CREDENTIALS_MISSING'
+    | 'EVALUATION_INVALID_CREDENTIALS'
     | 'EVALUATION_INVALID_REQUEST'
     | 'EVALUATION_RATE_LIMITED'
-    | 'EVALUATION_UPSTREAM_ERROR'
-    | 'EVALUATION_SCHEMA_ERROR'
+    | 'EVALUATION_TIMEOUT'
+    | 'EVALUATION_SERVICE_UNAVAILABLE'
+    | 'EVALUATION_INVALID_RESPONSE'
     | 'EVALUATION_NETWORK_ERROR';
   message: string;
   httpStatus?: number;
@@ -151,6 +153,16 @@ export function buildMissionEvaluationPayload(params: {
       batteryExhausted,
       eventsLog,
     },
+    deterministicScore: {
+      totalScore: simulationReport.totalScore,
+      scienceScore: simulationReport.scienceScore,
+      completionReliabilityScore: simulationReport.completionReliabilityScore,
+      resourceEfficiencyScore: simulationReport.resourceEfficiencyScore,
+      dataCommsScore: simulationReport.dataCommsScore,
+      riskCollabScore: simulationReport.riskCollabScore,
+      outcome: simulationReport.outcome,
+      grade: simulationReport.grade,
+    },
   };
 }
 
@@ -179,6 +191,7 @@ export async function requestAiMissionEvaluation(
     const data = (await response.json().catch(() => null)) as {
       ok?: boolean;
       report?: AiMissionEvaluationReport;
+      errorCode?: string;
       code?: string;
       error?: string | { code?: string; message?: string };
     } | null;
@@ -186,7 +199,7 @@ export async function requestAiMissionEvaluation(
     if (!response.ok || !data?.ok || !data.report) {
       const errorObj =
         data?.error && typeof data.error === 'object' ? data.error : undefined;
-      const rawCode = data?.code ?? errorObj?.code;
+      const rawCode = data?.errorCode ?? data?.code ?? errorObj?.code;
       const errorMessage =
         typeof data?.error === 'string'
           ? data.error
@@ -195,20 +208,24 @@ export async function requestAiMissionEvaluation(
             : `Mission evaluation service returned HTTP ${response.status}.`;
       const code: AiEvaluationError['code'] =
         rawCode === 'EVALUATION_CREDENTIALS_MISSING' ||
+        rawCode === 'EVALUATION_INVALID_CREDENTIALS' ||
         rawCode === 'EVALUATION_INVALID_REQUEST' ||
         rawCode === 'EVALUATION_RATE_LIMITED' ||
-        rawCode === 'EVALUATION_SCHEMA_ERROR' ||
-        rawCode === 'EVALUATION_UPSTREAM_ERROR'
+        rawCode === 'EVALUATION_TIMEOUT' ||
+        rawCode === 'EVALUATION_SERVICE_UNAVAILABLE' ||
+        rawCode === 'EVALUATION_INVALID_RESPONSE'
           ? rawCode
           : rawCode === 'INVALID_MISSION_PAYLOAD'
             ? 'EVALUATION_INVALID_REQUEST'
-            : rawCode === 'EVALUATION_INVALID_RESPONSE'
-              ? 'EVALUATION_SCHEMA_ERROR'
+            : rawCode === 'EVALUATION_SCHEMA_ERROR'
+              ? 'EVALUATION_INVALID_RESPONSE'
               : response.status === 429
                 ? 'EVALUATION_RATE_LIMITED'
-                : response.status === 503
-                  ? 'EVALUATION_CREDENTIALS_MISSING'
-                  : 'EVALUATION_UPSTREAM_ERROR';
+                : response.status === 504
+                  ? 'EVALUATION_TIMEOUT'
+                  : response.status === 503
+                    ? 'EVALUATION_CREDENTIALS_MISSING'
+                    : 'EVALUATION_SERVICE_UNAVAILABLE';
 
       return {
         ok: false,

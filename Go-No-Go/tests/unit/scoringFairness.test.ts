@@ -137,4 +137,20 @@ describe('Architecture-neutral mission scoring & competition tie ranking', () =>
       { id: 'd', rank: 4 },
     ]);
   });
+
+  it('ranks by aiScore when present (1, 1, 3, 4) and preserves earliest-submission tie order', () => {
+    const ranked = applyCompetitionTieRanking([
+      { id: 'late-tie', totalScore: 95.0, aiScore: 92.0, achievedAtIso: '2026-11-15T12:00:00Z' },
+      { id: 'early-tie', totalScore: 80.0, aiScore: 92.0, achievedAtIso: '2026-11-15T09:00:00Z' },
+      { id: 'third', totalScore: 90.0, aiScore: null, achievedAtIso: '2026-11-15T08:00:00Z' },
+      { id: 'fourth', totalScore: 85.0, aiScore: 84.5, achievedAtIso: '2026-11-15T07:00:00Z' },
+    ]);
+
+    expect(ranked.map((r) => ({ id: r.id, rank: r.rank }))).toEqual([
+      { id: 'early-tie', rank: 1 },
+      { id: 'late-tie', rank: 1 },
+      { id: 'third', rank: 3 },
+      { id: 'fourth', rank: 4 },
+    ]);
+  });
 });

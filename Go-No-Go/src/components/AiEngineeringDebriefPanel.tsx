@@ -1,11 +1,12 @@
 import {
   AlertTriangle,
   BookOpen,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Cpu,
-  ExternalLink,
   RefreshCw,
+  ShieldAlert,
   Sparkles,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -16,7 +17,7 @@ import {
   type AiEvaluationError,
 } from '../services/aiEvaluationService';
 import type {
-  AiCategoryEvaluation,
+  AiCategoryKey,
   AiMissionEvaluationReport,
   OperationsPlanConfig,
 } from '../types/aiEvaluation';
@@ -47,15 +48,35 @@ export interface AiEngineeringDebriefPanelProps {
 }
 
 const CATEGORY_META: Array<{
-  key: keyof AiMissionEvaluationReport['categories'];
+  key: AiCategoryKey;
   label: string;
+  maxPoints: number;
 }> = [
-  { key: 'science', label: 'Science Return (35%)' },
-  { key: 'reliability', label: 'Reliability (25%)' },
-  { key: 'resource_efficiency', label: 'Resource Efficiency (15%)' },
-  { key: 'data_comms', label: 'Data & Comms (15%)' },
-  { key: 'risk_management', label: 'Risk Management (10%)' },
+  { key: 'science', label: 'Science Return', maxPoints: 35 },
+  { key: 'reliability', label: 'Reliability', maxPoints: 25 },
+  { key: 'resourceEfficiency', label: 'Resource Efficiency', maxPoints: 15 },
+  { key: 'communications', label: 'Data & Comms', maxPoints: 15 },
+  { key: 'riskManagement', label: 'Risk Management', maxPoints: 10 },
 ];
+
+function getGeminiErrorTitle(code: AiEvaluationError['code']): string {
+  switch (code) {
+    case 'EVALUATION_CREDENTIALS_MISSING':
+      return 'API configuration missing';
+    case 'EVALUATION_INVALID_CREDENTIALS':
+      return 'Gemini evaluation unavailable (Invalid API credentials)';
+    case 'EVALUATION_RATE_LIMITED':
+      return 'Rate limit reached';
+    case 'EVALUATION_INVALID_RESPONSE':
+      return 'Invalid evaluation response';
+    case 'EVALUATION_TIMEOUT':
+      return 'Temporary Gemini service failure (Request timed out)';
+    case 'EVALUATION_SERVICE_UNAVAILABLE':
+      return 'Temporary Gemini service failure';
+    default:
+      return 'Gemini evaluation unavailable';
+  }
+}
 
 export function AiEngineeringDebriefPanel({
   completedReport,
@@ -158,225 +179,299 @@ export function AiEngineeringDebriefPanel({
 
   if (!completedReport) {
     return (
-      <section
-        aria-label="NASA-Informed AI Engineering Evaluation"
-        className="gng-glass-panel border border-cyan-400/20 p-5"
-      >
-        <div className="flex items-center gap-2 font-mono-tech text-xs font-semibold uppercase tracking-wider text-cyan-300">
-          <Sparkles className="h-4 w-4" aria-hidden="true" />
-          NASA-Informed AI Engineering Report
-        </div>
-        <p className="mt-2 text-xs text-slate-400">
-          Authorize launch and complete orbital simulation to run the post-flight OpenAI engineering evaluation against official NASA systems-engineering standards.
-        </p>
-      </section>
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 text-sm text-slate-400">
+        Complete a mission simulation run to trigger the Gemini AI systems engineering debrief.
+      </div>
     );
   }
 
   return (
     <section
-      aria-label="NASA-Informed AI Engineering Evaluation"
+      className="rounded-xl border border-cyan-500/30 bg-slate-900/75 p-5 shadow-lg space-y-5"
       data-testid="ai-engineering-debrief-panel"
-      className="gng-glass-panel space-y-4 border border-cyan-400/25 p-5"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-3">
-        <div>
-          <div className="flex items-center gap-2 font-mono-tech text-xs font-semibold uppercase tracking-wider text-cyan-300">
-            <Cpu className="h-4 w-4" aria-hidden="true" />
-            NASA-Informed AI Engineering Evaluation
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-300">
+            <Sparkles className="h-5 w-5" />
           </div>
-          <p className="mt-1 text-xs text-slate-400">
-            Educational systems-engineering review grounded in NASA SEH &amp; NASA-STD-7009B/5001B/7001C/7002B (not an official NASA endorsement).
-          </p>
+          <div>
+            <h2 className="text-base font-semibold text-white">
+              Gemini AI Systems Engineering Debrief
+            </h2>
+            <p className="text-xs text-slate-400">
+              Independent NASA-informed rubric evaluation (kept separate from deterministic physics score)
+            </p>
+          </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleRetry}
-          disabled={loading}
-          className="gng-glass-slice inline-flex items-center gap-1.5 px-3 py-1.5 font-mono-tech text-[11px] font-semibold text-cyan-200 transition hover:border-cyan-400/50 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-          {loading ? 'Evaluating...' : 'Re-run Evaluation'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {loading ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-300">
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              Evaluating mission...
+            </span>
+          ) : aiReport ? (
+            <>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Evaluation completed
+              </span>
+              <span className="rounded-md border border-slate-700 bg-slate-800/80 px-2.5 py-1 text-[11px] font-mono text-slate-300">
+                {aiReport.model} · v{aiReport.evaluationVersion}
+              </span>
+            </>
+          ) : error ? (
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/20"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Retry Gemini Evaluation
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {loading && (
-        <div
-          role="status"
-          className="rounded-lg border border-cyan-400/25 bg-cyan-950/20 p-4 text-xs text-cyan-200"
-        >
-          Requesting structured NASA-informed engineering evaluation from OpenAI Responses API...
+        <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-6 text-center space-y-2">
+          <Cpu className="h-6 w-6 text-cyan-400 mx-auto animate-pulse" />
+          <p className="text-sm font-medium text-slate-200">
+            Evaluating mission with Google Gemini...
+          </p>
+          <p className="text-xs text-slate-400">
+            Analyzing payload utility, orbital mechanics, power/thermal margins, downlink balance, and risk posture.
+          </p>
         </div>
       )}
 
       {!loading && error && (
-        <div role="alert" className="rounded-lg border border-amber-400/40 bg-amber-500/10 p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-amber-300">
-            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-            AI Engineering Evaluation Unavailable ({error.code})
+        <div
+          className="rounded-lg border border-rose-500/40 bg-rose-950/30 p-4 space-y-2"
+          data-testid="ai-evaluation-error"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-rose-300 font-semibold text-sm">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>
+                {getGeminiErrorTitle(error.code)} ({error.code})
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="inline-flex items-center gap-1 rounded border border-rose-400/40 bg-rose-500/15 px-2.5 py-1 text-xs font-medium text-rose-100 hover:bg-rose-500/25"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Retry
+            </button>
           </div>
-          <p className="mt-1 text-xs text-amber-100/90">{error.message}</p>
-          <p className="mt-2 text-[11px] text-slate-300">
-            Your deterministic mission score and simulation telemetry remain intact above. You can retry the AI evaluation or submit your deterministic score to the leaderboard.
+          <p className="text-xs text-rose-200/90">{error.message}</p>
+          <p className="text-[11px] text-slate-300">
+            Your deterministic simulation score ({completedReport.totalScore.toFixed(1)} / 100) remains preserved and can still be submitted to the leaderboard.
           </p>
         </div>
       )}
 
       {!loading && aiReport && (
-        <div className="space-y-5">
-          {/* Executive Summary + AI Overall Score */}
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-white/10 bg-black/25 p-4">
-            <div className="max-w-3xl space-y-1">
-              <div className="font-mono-tech text-[11px] uppercase tracking-wider text-slate-400">
-                Model {aiReport.model} · Rubric {aiReport.evaluationVersion} · ID{' '}
-                {aiReport.evaluationId}
+        <div className="space-y-5" data-testid="ai-evaluation-report">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="rounded-lg border border-cyan-500/30 bg-slate-950/70 p-4">
+              <div className="text-xs uppercase tracking-wider text-cyan-300">
+                Gemini AI Engineering Score
               </div>
-              <p className="text-sm leading-relaxed text-slate-100">{aiReport.executiveSummary}</p>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-white">
+                  {aiReport.overallScore.toFixed(1)}
+                </span>
+                <span className="text-sm text-slate-400">/ 100</span>
+              </div>
+              <div className="mt-2 inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold border border-slate-700 bg-slate-800 text-slate-200">
+                Assessment: {aiReport.assessment}
+              </div>
             </div>
-            <div className="shrink-0 rounded-lg border border-cyan-400/35 bg-cyan-500/10 px-4 py-2.5 text-right">
-              <div className="font-mono-tech text-[10px] uppercase text-cyan-300">
-                AI Rubric Score
+
+            <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-4">
+              <div className="text-xs uppercase tracking-wider text-slate-400">
+                Deterministic Simulation Score
               </div>
-              <div className="font-mono-tech text-2xl font-bold text-cyan-200">
-                {aiReport.overallScore.toFixed(1)}{' '}
-                <span className="text-xs text-slate-400">/ 100</span>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-slate-200">
+                  {completedReport.totalScore.toFixed(1)}
+                </span>
+                <span className="text-sm text-slate-500">/ 100</span>
               </div>
-              <div className="font-mono-tech text-[10px] font-semibold text-emerald-300">
-                {aiReport.outcome}
+              <div className="mt-2 text-xs text-slate-400">
+                Physics engine grade: <span className="font-semibold text-slate-200">{completedReport.grade}</span> · {completedReport.outcome}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-4">
+              <div className="text-xs uppercase tracking-wider text-slate-400">
+                Evaluation Snapshot
+              </div>
+              <div className="mt-1 text-xs font-mono text-slate-300 break-all">
+                ID: {aiReport.evaluationId}
+              </div>
+              <div className="mt-1 text-xs text-slate-400">
+                Hash: <span className="font-mono">{aiReport.snapshotHash}</span>
+                {aiReport.cached ? ' · Cached' : ''}
               </div>
             </div>
           </div>
 
-          {/* 5 Category Assessments + Expandable Deductions */}
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {CATEGORY_META.map(({ key, label }) => {
-              const cat: AiCategoryEvaluation = aiReport.categories[key];
-              const expanded = Boolean(expandedDeductions[key]);
+          <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 space-y-1.5">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+              Executive Engineering Summary
+            </h3>
+            <p className="text-sm leading-relaxed text-slate-200">{aiReport.summary}</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {CATEGORY_META.map(({ key, label, maxPoints }) => {
+              const score = aiReport.categoryScores[key];
+              const pct = Math.max(0, Math.min(100, (score / maxPoints) * 100));
               return (
                 <div
                   key={key}
-                  className="rounded-xl border border-white/10 bg-[#0d1424]/80 p-3.5"
+                  className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 space-y-2"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-100">
-                      {label}
-                    </span>
-                    <div className="flex items-center gap-2 font-mono-tech text-xs">
-                      <span className="font-bold text-cyan-300">
-                        {cat.weightedPoints.toFixed(1)} / {cat.weight} pts
-                      </span>
-                    </div>
+                  <div className="text-xs font-medium text-slate-300">{label}</div>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-lg font-bold text-white">{score.toFixed(1)}</span>
+                    <span className="text-xs text-slate-500">/ {maxPoints}</span>
                   </div>
-                  {cat.strengths.length > 0 && (
-                    <p className="mt-1.5 text-xs text-slate-300">{cat.strengths[0]}</p>
-                  )}
-
-                  {cat.deductions.length > 0 && (
-                    <div className="mt-2.5 border-t border-white/10 pt-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExpandedDeductions((prev) => ({
-                            ...prev,
-                            [key]: !expanded,
-                          }))
-                        }
-                        className="flex w-full items-center justify-between font-mono-tech text-[11px] font-semibold text-amber-300"
-                      >
-                        <span>
-                          {cat.deductions.length} Evidence-Based Deduction
-                          {cat.deductions.length === 1 ? '' : 's'}
-                        </span>
-                        {expanded ? (
-                          <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
-                        ) : (
-                          <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-                        )}
-                      </button>
-
-                      {expanded && (
-                        <ul className="mt-2 space-y-1.5 text-[11px]">
-                          {cat.deductions.map((ded, idx) => (
-                            <li
-                              key={`${ded.criterion}-${idx}`}
-                              className="rounded border border-amber-400/25 bg-amber-500/5 p-2 text-slate-200"
-                            >
-                              <div className="flex items-center justify-between font-mono-tech">
-                                <span className="font-semibold text-amber-300">{ded.criterion}</span>
-                                <span className="text-red-300">
-                                  -{ded.pointsDeducted.toFixed(1)} pts ({ded.status})
-                                </span>
-                              </div>
-                              <div className="mt-0.5 text-slate-300">{ded.technicalExplanation}</div>
-                              <div className="mt-0.5 font-mono-tech text-[10px] text-slate-400">
-                                Observed: {ded.observedValue} {ded.unit} · Limit:{' '}
-                                {ded.expectedValueOrLimit} {ded.unit} · Ref:{' '}
-                                {ded.nasaReferenceCode ?? 'Simulator Rule'}
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
+                  <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-cyan-400"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Recommendations & Official NASA References */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-              <h3 className="font-mono-tech text-xs font-semibold uppercase tracking-wider text-emerald-300">
-                Prioritized Engineering Recommendations
-              </h3>
-              <ul className="mt-2.5 space-y-2 text-xs">
-                {aiReport.engineeringRecommendations.map((rec, idx) => (
-                  <li
-                    key={`${rec.title}-${idx}`}
-                    className="rounded-lg border border-white/10 bg-white/5 p-2.5"
-                  >
-                    <div className="font-semibold text-slate-100">{rec.title}</div>
-                    <p className="mt-1 text-slate-300">{rec.recommendedChange}</p>
-                    <p className="mt-1 font-mono-tech text-[10px] text-emerald-300">
-                      Target: {rec.targetComponentOrParameter} ({rec.suggestedParameterRange})
-                    </p>
-                  </li>
+          {aiReport.criticalFailures.length > 0 && (
+            <div className="rounded-lg border border-rose-500/40 bg-rose-950/25 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-rose-300">
+                <ShieldAlert className="h-4 w-4" />
+                Critical Engineering Failures
+              </div>
+              <ul className="list-disc pl-5 space-y-1 text-xs text-rose-100">
+                {aiReport.criticalFailures.map((item, idx) => (
+                  <li key={idx}>{item}</li>
                 ))}
               </ul>
             </div>
+          )}
 
-            <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-              <h3 className="flex items-center gap-1.5 font-mono-tech text-xs font-semibold uppercase tracking-wider text-cyan-300">
-                <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
-                NASA Reference Basis
+          {aiReport.strengths.length > 0 && (
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/15 p-4 space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-300">
+                Verified Engineering Strengths
               </h3>
-              <ul className="mt-2.5 space-y-2 text-xs">
-                {aiReport.nasaReferences.map((ref) => (
-                  <li key={ref.code} className="rounded-lg border border-white/10 bg-white/5 p-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono-tech font-bold text-cyan-200">{ref.code}</span>
-                      <a
-                        href={ref.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 font-mono-tech text-[10px] text-cyan-300 hover:underline"
-                      >
-                        Official Source <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                      </a>
-                    </div>
-                    <div className="mt-0.5 font-semibold text-slate-100">{ref.title}</div>
-                    <p className="mt-0.5 text-slate-400">{ref.relevance}</p>
-                  </li>
+              <ul className="list-disc pl-5 space-y-1 text-xs text-slate-200">
+                {aiReport.strengths.map((item, idx) => (
+                  <li key={idx}>{item}</li>
                 ))}
               </ul>
-              <p className="mt-3 font-mono-tech text-[10px] text-slate-400">
-                Educational simulation debrief — NASA-informed engineering guidance only; not an
-                official NASA endorsement.
-              </p>
             </div>
+          )}
+
+          <div className="space-y-2.5">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+              Engineering Deductions & Corrective Actions ({aiReport.deductions.length})
+            </h3>
+            {aiReport.deductions.length === 0 ? (
+              <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-xs text-slate-400">
+                No rubric deductions recorded for this mission run.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {aiReport.deductions.map((ded, idx) => {
+                  const idKey = `${ded.category}-${idx}`;
+                  const expanded = expandedDeductions[idKey] ?? true;
+                  return (
+                    <div
+                      key={idKey}
+                      className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 space-y-2"
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedDeductions((prev) => ({ ...prev, [idKey]: !expanded }))
+                        }
+                        className="flex w-full items-center justify-between text-left gap-3"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[11px] font-semibold text-amber-300">
+                            -{ded.points.toFixed(1)} pts
+                          </span>
+                          <span className="rounded bg-slate-800 px-2 py-0.5 text-[11px] font-mono text-slate-300">
+                            {ded.category}
+                          </span>
+                          <span className="rounded bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-200">
+                            {ded.severity}
+                          </span>
+                          <span className="text-xs font-medium text-white">{ded.finding}</span>
+                        </div>
+                        {expanded ? (
+                          <ChevronUp className="h-4 w-4 text-slate-400 shrink-0" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
+                        )}
+                      </button>
+                      {expanded && (
+                        <div className="border-t border-slate-800 pt-2 text-xs space-y-1 text-slate-300">
+                          <div>
+                            <span className="font-semibold text-slate-200">Engineering Impact: </span>
+                            {ded.engineeringImpact}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-cyan-300">Recommended Correction: </span>
+                            {ded.recommendedCorrection}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
+
+          {aiReport.engineeringRationale.length > 0 && (
+            <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-cyan-300">
+                <BookOpen className="h-4 w-4" />
+                NASA Systems Engineering Rationale
+              </div>
+              <ul className="list-disc pl-5 space-y-1 text-xs text-slate-300">
+                {aiReport.engineeringRationale.map((item, idx) => (
+                  <li key={idx}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {aiReport.limitations.length > 0 && (
+            <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 space-y-1">
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Simulation & Evaluation Limitations
+              </div>
+              <ul className="list-disc pl-5 space-y-0.5 text-xs text-slate-400">
+                {aiReport.limitations.map((item, idx) => (
+                  <li key={idx}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <p className="text-[11px] text-slate-500 border-t border-slate-800 pt-3">
+            {aiReport.educationalDisclaimer}
+          </p>
         </div>
       )}
     </section>

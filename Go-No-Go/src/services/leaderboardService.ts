@@ -337,6 +337,15 @@ export async function submitVerifiedMissionScore(params: {
     evaluationVersion: string;
     evaluationModel: string;
     snapshotHash: string;
+    aiScore?: number;
+    deterministicScore?: number;
+    aiCategoryScores?: {
+      science: number;
+      reliability: number;
+      resourceEfficiency: number;
+      communications: number;
+      riskManagement: number;
+    };
   };
 }): Promise<LeaderboardSubmissionResult> {
   const seasonCode = (params.seasonCode ?? CURRENT_SEASON_CODE).trim().toUpperCase();
@@ -447,6 +456,9 @@ export async function submitVerifiedMissionScore(params: {
           p_evaluation_version: params.evaluationMetadata.evaluationVersion,
           p_evaluation_model: params.evaluationMetadata.evaluationModel,
           p_snapshot_hash: params.evaluationMetadata.snapshotHash,
+          p_ai_score: params.evaluationMetadata.aiScore ?? null,
+          p_deterministic_score: params.evaluationMetadata.deterministicScore ?? null,
+          p_ai_category_scores: params.evaluationMetadata.aiCategoryScores ?? null,
         });
       } catch {
         // Non-blocking: older database schemas without the metadata migration remain supported.
@@ -624,15 +636,22 @@ export async function fetchMissionLeaderboard(
 }
 
 /**
- * Applies standard competition ranking (1, 2, 2, 4) by totalScore descending,
+ * Applies standard competition ranking (1, 2, 2, 4) by ranking score (aiScore ?? totalScore) descending,
  * ordering tied scores by earliest achievedAtIso ascending then id ascending.
  */
 export function applyCompetitionTieRanking<
-  T extends { id: string; totalScore: number; achievedAtIso: string; rank?: number },
+  T extends {
+    id: string;
+    totalScore: number;
+    aiScore?: number | null;
+    achievedAtIso: string;
+    rank?: number;
+  },
 >(entries: readonly T[]): Array<T & { rank: number }> {
+  const effectiveScore = (e: T) => Math.round((e.aiScore ?? e.totalScore) * 10);
   const sorted = [...entries].sort((a, b) => {
-    const scoreA = Math.round(a.totalScore * 10);
-    const scoreB = Math.round(b.totalScore * 10);
+    const scoreA = effectiveScore(a);
+    const scoreB = effectiveScore(b);
     if (scoreB !== scoreA) return scoreB - scoreA;
     const timeA = Date.parse(a.achievedAtIso) || 0;
     const timeB = Date.parse(b.achievedAtIso) || 0;
@@ -643,7 +662,7 @@ export function applyCompetitionTieRanking<
   let currentRank = 0;
   let lastRoundedScore: number | null = null;
   return sorted.map((entry, idx) => {
-    const rounded = Math.round(entry.totalScore * 10);
+    const rounded = effectiveScore(entry);
     if (lastRoundedScore === null || rounded !== lastRoundedScore) {
       currentRank = idx + 1;
       lastRoundedScore = rounded;

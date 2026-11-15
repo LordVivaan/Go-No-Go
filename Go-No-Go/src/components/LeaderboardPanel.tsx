@@ -177,6 +177,9 @@ export function LeaderboardPanel({
             evaluationVersion: aiEvaluation.evaluationVersion,
             evaluationModel: aiEvaluation.model,
             snapshotHash: aiEvaluation.snapshotHash,
+            aiScore: aiEvaluation.overallScore,
+            deterministicScore: report.totalScore,
+            aiCategoryScores: aiEvaluation.categoryScores,
           }
         : undefined,
     });
@@ -563,7 +566,14 @@ export function LeaderboardPanel({
                         {formatDurationCompact(entry.completionDurationSec)}
                       </td>
                       <td className="px-3 py-2 text-right font-mono font-bold text-emerald-300">
-                        {Number(entry.totalScore).toFixed(1)}
+                        <div>
+                          {Number(entry.aiScore ?? entry.totalScore).toFixed(1)}
+                        </div>
+                        {entry.aiScore != null && (
+                          <div className="text-[10px] font-normal text-slate-400">
+                            Det {Number(entry.deterministicScore ?? entry.totalScore).toFixed(1)}
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-center font-mono font-bold">
                         {entry.grade}
@@ -604,7 +614,7 @@ export function LeaderboardPanel({
                         <span className="font-mono font-bold">#{entry.rank}</span>{' '}
                         <span>{entry.playerAlias}</span> ·{' '}
                         <span className="font-mono text-emerald-300">
-                          {Number(entry.totalScore).toFixed(1)}
+                          {Number(entry.aiScore ?? entry.totalScore).toFixed(1)}
                         </span>
                       </div>
                     ))}

@@ -81,7 +81,15 @@ create table if not exists public.leaderboard_entries (
   player_alias text not null check (char_length(player_alias) between 2 and 24),
   country_code text check (public.is_valid_iso_country_code(country_code)),
   mission_code text not null check (
-    mission_code in ('FLOODWATCH', 'LUNAR ICE MAPPER', 'LUNAR SCOUT', 'MARS RELAY', 'NEAR-EARTH ASTEROID')
+    mission_code in (
+      'FLOODWATCH',
+      'LUNAR ICE MAPPER',
+      'LUNAR SCOUT',
+      'MARS OBSERVER',
+      'MARS RELAY',
+      'ASTEROID EXPLORER',
+      'NEAR-EARTH ASTEROID'
+    )
   ),
   difficulty text not null check (difficulty in ('STANDARD', 'HARD', 'EXPERT')),
   season_code text not null default '2026-S1' check (season_code ~ '^[0-9]{4}-S[1-4]$'),
@@ -271,7 +279,15 @@ begin
   end if;
 
   v_mission := upper(trim(coalesce(p_mission_code, 'FLOODWATCH')));
-  if v_mission not in ('FLOODWATCH', 'LUNAR ICE MAPPER', 'LUNAR SCOUT', 'MARS RELAY', 'NEAR-EARTH ASTEROID') then
+  if v_mission not in (
+    'FLOODWATCH',
+    'LUNAR ICE MAPPER',
+    'LUNAR SCOUT',
+    'MARS OBSERVER',
+    'MARS RELAY',
+    'ASTEROID EXPLORER',
+    'NEAR-EARTH ASTEROID'
+  ) then
     return jsonb_build_object('ok', false, 'error', 'Unsupported mission code for verified leaderboard.');
   end if;
 
@@ -738,7 +754,7 @@ begin
           'grade', r.grade,
           'outcome', r.outcome,
           'completionDurationSec', r.completion_duration_sec,
-          'data_downlinkedGb', r.data_downlinked_gb,
+          'dataDownlinkedGb', r.data_downlinked_gb,
           'regionsMappedCount', r.regions_mapped_count,
           'achievedAtIso', r.achieved_at,
           'isCurrentPlayer', r.is_current_player

@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createSupabaseClientFromEnv,
+  getSupabaseDiagnostics,
   validateSupabaseEnv,
 } from '../../src/services/supabaseClient';
 import { resolveMissionEntities, useMissionStore, getMissionConfigSignature } from '../../src/store/missionStore';
@@ -82,6 +83,27 @@ describe('Supabase Environment, Auth Errors, Leaderboard States & Security Audit
     });
     expect(invalid.configured).toBe(false);
     expect(invalid.client).toBeNull();
+
+    // Reject secret/service-role keys in browser-facing variables
+    const secretRejected = validateSupabaseEnv({
+      VITE_SUPABASE_URL: 'https://yckvuuapqgiqagswxhqv.supabase.co',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_secret_never_put_in_vite_browser_env',
+    });
+    expect(secretRejected.configured).toBe(false);
+    expect(secretRejected.reason).toContain('Secret or service-role');
+
+    const diag = getSupabaseDiagnostics({
+      VITE_SUPABASE_URL: 'https://yckvuuapqgiqagswxhqv.supabase.co',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test_key_1234567890',
+    });
+    expect(diag).toEqual({
+      configured: true,
+      hasUrl: true,
+      hasPublishableKey: true,
+      keyKind: 'publishable',
+    });
+    expect(JSON.stringify(diag)).not.toContain('yckvuuapqgiqagswxhqv');
+    expect(JSON.stringify(diag)).not.toContain('sb_publishable_test_key');
   });
 
   it('initializes Supabase client cleanly with VITE_SUPABASE_PUBLISHABLE_KEY or fallback anon key', () => {

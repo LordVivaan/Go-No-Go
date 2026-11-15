@@ -440,6 +440,16 @@ function formatLeaderboardRpcError(rawMessage: string): string {
     return `Leaderboard unavailable: RPC function not found. (${rawMessage})`;
   }
   if (
+    lower.includes('permission denied') ||
+    lower.includes('row-level security') ||
+    lower.includes('42501') ||
+    lower.includes('invalid api key') ||
+    lower.includes('pgrst301') ||
+    lower.includes('jwt')
+  ) {
+    return `Leaderboard access denied: permission or API key error. (${rawMessage})`;
+  }
+  if (
     lower.includes('failed to fetch') ||
     lower.includes('networkerror') ||
     lower.includes('fetch failed') ||

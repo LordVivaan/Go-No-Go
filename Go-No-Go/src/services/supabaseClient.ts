@@ -8,6 +8,14 @@ export interface SupabaseEnvCheck {
   reason?: string;
 }
 
+export interface SupabaseDiagnostics {
+  configured: boolean;
+  hasUrl: boolean;
+  hasPublishableKey: boolean;
+  keyKind: 'publishable' | 'anon-jwt' | 'missing' | 'invalid-secret' | 'invalid';
+  reason?: string;
+}
+
 const PLACEHOLDER_MARKERS = ['placeholder', 'your-supabase', 'your-project-ref', 'example.com'];
 
 function isValidHttpUrl(value: string): boolean {
@@ -24,6 +32,11 @@ function containsPlaceholder(value: string): boolean {
   return PLACEHOLDER_MARKERS.some((marker) => lower.includes(marker));
 }
 
+function isSecretOrServiceRoleKey(key: string): boolean {
+  const lower = key.toLowerCase();
+  return lower.startsWith('sb_secret_') || lower.includes('service_role');
+}
+
 /**
  * Validates public Supabase browser environment variables.
  * Prefers `VITE_SUPABASE_PUBLISHABLE_KEY` and falls back to `VITE_SUPABASE_ANON_KEY`
@@ -35,7 +48,8 @@ export function validateSupabaseEnv(env: {
   VITE_SUPABASE_ANON_KEY?: string;
 }): SupabaseEnvCheck {
   const rawUrl = env.VITE_SUPABASE_URL?.trim();
-  const rawKey = (env.VITE_SUPABASE_PUBLISHABLE_KEY ?? env.VITE_SUPABASE_ANON_KEY)?.trim();
+  const rawKey =
+    env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || env.VITE_SUPABASE_ANON_KEY?.trim() || '';
 
   if (!rawUrl || !rawKey) {
     return {
@@ -55,6 +69,15 @@ export function validateSupabaseEnv(env: {
     };
   }
 
+  if (isSecretOrServiceRoleKey(rawKey)) {
+    return {
+      configured: false,
+      url: null,
+      publishableKey: null,
+      reason: 'Secret or service-role keys must never be used in VITE_SUPABASE_PUBLISHABLE_KEY.',
+    };
+  }
+
   if (rawKey.length < 16 || containsPlaceholder(rawKey)) {
     return {
       configured: false,
@@ -68,6 +91,52 @@ export function validateSupabaseEnv(env: {
     configured: true,
     url: rawUrl,
     publishableKey: rawKey,
+  };
+}
+
+/**
+ * Returns safe, credential-free diagnostics describing whether browser-facing
+ * Supabase variables are present and valid without ever exposing values.
+ */
+export function getSupabaseDiagnostics(env?: {
+  VITE_SUPABASE_URL?: string;
+  VITE_SUPABASE_PUBLISHABLE_KEY?: string;
+  VITE_SUPABASE_ANON_KEY?: string;
+}): SupabaseDiagnostics {
+  const source = env ?? {
+    VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL as string | undefined,
+    VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as
+      | string
+      | undefined,
+    VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined,
+  };
+
+  const rawUrl = source.VITE_SUPABASE_URL?.trim() ?? '';
+  const rawKey =
+    source.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || source.VITE_SUPABASE_ANON_KEY?.trim() || '';
+  const check = validateSupabaseEnv(source);
+
+  let keyKind: SupabaseDiagnostics['keyKind'] = 'missing';
+  if (rawKey) {
+    if (isSecretOrServiceRoleKey(rawKey)) {
+      keyKind = 'invalid-secret';
+    } else if (!check.configured && rawKey.length < 16) {
+      keyKind = 'invalid';
+    } else if (rawKey.startsWith('sb_publishable_')) {
+      keyKind = 'publishable';
+    } else if (rawKey.startsWith('eyJ')) {
+      keyKind = 'anon-jwt';
+    } else {
+      keyKind = check.configured ? 'publishable' : 'invalid';
+    }
+  }
+
+  return {
+    configured: check.configured,
+    hasUrl: Boolean(rawUrl),
+    hasPublishableKey: Boolean(rawKey),
+    keyKind,
+    ...(check.reason ? { reason: check.reason } : {}),
   };
 }
 

@@ -9,260 +9,21 @@ import { getBodyConstants } from '../engine/orbital';
 import type { CelestialBodyId, TargetRegion } from '../types/mission';
 import type { OrbitalParameters } from '../types/spacecraft';
 import { OrbitPath } from './OrbitPath';
+import {
+  getCachedTexture,
+  getEarthDerivedMaps,
+  getProceduralCloudTexture,
+  getProceduralPlanetMaps,
+  loadTextureByUrl,
+  setBodyTextureStatus,
+  type DerivedPlanetMaps,
+  type TextureLoadStatus,
+} from './planetaryTextures';
 import { getCelestialTextureConfig } from './textureManifest';
 import { SceneCanvasGuard } from './WebGLFallback';
 import { usePrefersReducedMotion } from './webglUtils';
 
 type EarthCameraPreset = 'OVERVIEW' | 'POLAR' | 'EQUATORIAL';
-
-interface DerivedEarthMaps {
-  colorMap: THREE.CanvasTexture;
-  roughnessMap: THREE.CanvasTexture;
-  bumpMap: THREE.CanvasTexture;
-}
-
-const rawTextureCache = new Map<string, THREE.Texture>();
-let cachedEarthDerivedMaps: DerivedEarthMaps | null = null;
-let cachedProceduralCloudTexture: THREE.CanvasTexture | null = null;
-
-function getProceduralCloudTexture(): THREE.CanvasTexture | null {
-  const tex = cachedProceduralCloudTexture ?? buildProceduralCloudTexture();
-  cachedProceduralCloudTexture = tex;
-  return tex;
-}
-
-/**
- * Generates an enhanced equirectangular Earth texture set from the staged NASA texture:
- * - Softens baked 1px lat/long graticule lines without blurring continental coastlines
- * - Derives an ocean-vs-land roughness map (subtle solar sheen on oceans, matte land)
- * - Derives a subtle terrain relief bump map
- */
-function buildEarthDerivedMaps(image: HTMLImageElement): DerivedEarthMaps | null {
-  try {
-    const srcW = image.naturalWidth || image.width || 446;
-    const srcH = image.naturalHeight || image.height || 224;
-
-    // Step 1: Heal 1px baked lat/long graticule lines at native source resolution before upscaling
-    const srcCanvas = document.createElement('canvas');
-    srcCanvas.width = srcW;
-    srcCanvas.height = srcH;
-    const sCtx = srcCanvas.getContext('2d', { willReadFrequently: true });
-    if (!sCtx) return null;
-    sCtx.drawImage(image, 0, 0, srcW, srcH);
-
-    const srcData = sCtx.getImageData(0, 0, srcW, srcH);
-    const sd = srcData.data;
-    const scopy = new Uint8ClampedArray(sd);
-
-    for (let y = 2; y < srcH - 2; y++) {
-      for (let x = 2; x < srcW - 2; x++) {
-        const idx = (y * srcW + x) * 4;
-        const lum = scopy[idx] * 0.299 + scopy[idx + 1] * 0.587 + scopy[idx + 2] * 0.114;
-
-        // Vertical grid check (compare left-2 vs right-2)
-        const lIdx = (y * srcW + (x - 2)) * 4;
-        const rIdx = (y * srcW + (x + 2)) * 4;
-        const lrDiff =
-          Math.abs(scopy[lIdx] - scopy[rIdx]) +
-          Math.abs(scopy[lIdx + 1] - scopy[rIdx + 1]) +
-          Math.abs(scopy[lIdx + 2] - scopy[rIdx + 2]);
-        const lrLum =
-          ((scopy[lIdx] + scopy[rIdx]) * 0.5) * 0.299 +
-          ((scopy[lIdx + 1] + scopy[rIdx + 1]) * 0.5) * 0.587 +
-          ((scopy[lIdx + 2] + scopy[rIdx + 2]) * 0.5) * 0.114;
-
-        if (lrDiff < 55 && Math.abs(lum - lrLum) > 12) {
-          sd[idx] = Math.round((scopy[lIdx] + scopy[rIdx]) * 0.5);
-          sd[idx + 1] = Math.round((scopy[lIdx + 1] + scopy[rIdx + 1]) * 0.5);
-          sd[idx + 2] = Math.round((scopy[lIdx + 2] + scopy[rIdx + 2]) * 0.5);
-          continue;
-        }
-
-        // Horizontal grid check (compare up-2 vs down-2)
-        const uIdx = ((y - 2) * srcW + x) * 4;
-        const bIdx = ((y + 2) * srcW + x) * 4;
-        const ubDiff =
-          Math.abs(scopy[uIdx] - scopy[bIdx]) +
-          Math.abs(scopy[uIdx + 1] - scopy[bIdx + 1]) +
-          Math.abs(scopy[uIdx + 2] - scopy[bIdx + 2]);
-        const ubLum =
-          ((scopy[uIdx] + scopy[bIdx]) * 0.5) * 0.299 +
-          ((scopy[uIdx + 1] + scopy[bIdx + 1]) * 0.5) * 0.587 +
-          ((scopy[uIdx + 2] + scopy[bIdx + 2]) * 0.5) * 0.114;
-
-        if (ubDiff < 55 && Math.abs(lum - ubLum) > 12) {
-          sd[idx] = Math.round((scopy[uIdx] + scopy[bIdx]) * 0.5);
-          sd[idx + 1] = Math.round((scopy[uIdx + 1] + scopy[bIdx + 1]) * 0.5);
-          sd[idx + 2] = Math.round((scopy[uIdx + 2] + scopy[bIdx + 2]) * 0.5);
-        }
-      }
-    }
-    sCtx.putImageData(srcData, 0, 0);
-
-    // Step 2: Upscale cleaned texture onto 1024x512 color map & derive PBR maps
-    const w = 1024;
-    const h = 512;
-
-    const colorCanvas = document.createElement('canvas');
-    colorCanvas.width = w;
-    colorCanvas.height = h;
-    const cCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
-    if (!cCtx) return null;
-
-    cCtx.imageSmoothingEnabled = true;
-    cCtx.imageSmoothingQuality = 'high';
-    cCtx.drawImage(srcCanvas, 0, 0, w, h);
-
-    const imgData = cCtx.getImageData(0, 0, w, h);
-    const d = imgData.data;
-
-    const roughCanvas = document.createElement('canvas');
-    roughCanvas.width = w;
-    roughCanvas.height = h;
-    const rCtx = roughCanvas.getContext('2d');
-    const bumpCanvas = document.createElement('canvas');
-    bumpCanvas.width = w;
-    bumpCanvas.height = h;
-    const bCtx = bumpCanvas.getContext('2d');
-    if (!rCtx || !bCtx) return null;
-
-    const rData = rCtx.createImageData(w, h);
-    const bData = bCtx.createImageData(w, h);
-
-    for (let i = 0; i < d.length; i += 4) {
-      const r = d[i];
-      const g = d[i + 1];
-      const b = d[i + 2];
-      const isOcean = b > r * 1.12 && b >= g * 0.94 && b > 64;
-      const lum = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
-
-      const roughVal = isOcean ? 162 : 226;
-      rData.data[i] = roughVal;
-      rData.data[i + 1] = roughVal;
-      rData.data[i + 2] = roughVal;
-      rData.data[i + 3] = 255;
-
-      const bumpVal = isOcean ? 36 : Math.min(255, 86 + Math.round(lum * 0.52));
-      bData.data[i] = bumpVal;
-      bData.data[i + 1] = bumpVal;
-      bData.data[i + 2] = bumpVal;
-      bData.data[i + 3] = 255;
-    }
-
-    rCtx.putImageData(rData, 0, 0);
-    bCtx.putImageData(bData, 0, 0);
-
-    const colorMap = new THREE.CanvasTexture(colorCanvas);
-    colorMap.colorSpace = THREE.SRGBColorSpace;
-    colorMap.anisotropy = 8;
-    colorMap.generateMipmaps = true;
-    colorMap.minFilter = THREE.LinearMipmapLinearFilter;
-    colorMap.magFilter = THREE.LinearFilter;
-    colorMap.wrapS = THREE.RepeatWrapping;
-    colorMap.wrapT = THREE.ClampToEdgeWrapping;
-    colorMap.needsUpdate = true;
-
-    const roughnessMap = new THREE.CanvasTexture(roughCanvas);
-    roughnessMap.anisotropy = 4;
-    roughnessMap.wrapS = THREE.RepeatWrapping;
-    roughnessMap.wrapT = THREE.ClampToEdgeWrapping;
-    roughnessMap.needsUpdate = true;
-
-    const bumpMap = new THREE.CanvasTexture(bumpCanvas);
-    bumpMap.anisotropy = 4;
-    bumpMap.wrapS = THREE.RepeatWrapping;
-    bumpMap.wrapT = THREE.ClampToEdgeWrapping;
-    bumpMap.needsUpdate = true;
-
-    return { colorMap, roughnessMap, bumpMap };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Generates a seamless periodic equirectangular procedural cloud layer texture
- * so monsoon cloud bands drift smoothly without antimeridian seams.
- */
-function buildProceduralCloudTexture(): THREE.CanvasTexture | null {
-  try {
-    const w = 512;
-    const h = 256;
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-
-    const img = ctx.createImageData(w, h);
-    const out = img.data;
-
-    // Periodic hash on integer torus lattice
-    const hash = (ix: number, iy: number, px: number) => {
-      const wx = ((ix % px) + px) % px;
-      const n = Math.sin(wx * 127.1 + iy * 311.7) * 43758.5453123;
-      return n - Math.floor(n);
-    };
-
-    const periodicNoise = (u: number, v: number, freqX: number, freqY: number) => {
-      const gx = u * freqX;
-      const gy = v * freqY;
-      const x0 = Math.floor(gx);
-      const y0 = Math.floor(gy);
-      const fx = gx - x0;
-      const fy = gy - y0;
-      const sx = fx * fx * (3 - 2 * fx);
-      const sy = fy * fy * (3 - 2 * fy);
-
-      const n00 = hash(x0, y0, freqX);
-      const n10 = hash(x0 + 1, y0, freqX);
-      const n01 = hash(x0, y0 + 1, freqX);
-      const n11 = hash(x0 + 1, y0 + 1, freqX);
-
-      const nx0 = n00 + sx * (n10 - n00);
-      const nx1 = n01 + sx * (n11 - n01);
-      return nx0 + sy * (nx1 - nx0);
-    };
-
-    for (let y = 0; y < h; y++) {
-      const v = y / h;
-      const lat = (v - 0.5) * Math.PI;
-      // Modulate cloud density along mid-latitude storm belts and ITCZ
-      const beltBoost =
-        0.08 * Math.cos(lat * 2.5) + 0.06 * Math.exp(-Math.pow((Math.abs(lat) - 0.78) / 0.35, 2));
-
-      for (let x = 0; x < w; x++) {
-        const u = x / w;
-        const shearU = (u + Math.sin(lat * 2.0) * 0.05 + 1.0) % 1.0;
-
-        const fbm =
-          0.52 * periodicNoise(shearU, v, 8, 4) +
-          0.28 * periodicNoise(u, v, 16, 8) +
-          0.14 * periodicNoise(shearU, v, 32, 16) +
-          0.06 * periodicNoise(u, v, 64, 32);
-
-        const density = Math.max(0, Math.min(1, (fbm + beltBoost - 0.54) * 2.7));
-        const alpha = Math.round(Math.pow(density, 1.35) * 190);
-        const idx = (y * w + x) * 4;
-        out[idx] = 241;
-        out[idx + 1] = 245;
-        out[idx + 2] = 250;
-        out[idx + 3] = alpha;
-      }
-    }
-
-    ctx.putImageData(img, 0, 0);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.ClampToEdgeWrapping;
-    tex.anisotropy = 4;
-    tex.needsUpdate = true;
-    return tex;
-  } catch {
-    return null;
-  }
-}
 
 function latLonToVector3(
   latDeg: number,
@@ -389,38 +150,24 @@ function DistantMoon({
   const isPortrait = size.height > size.width;
   const moonRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
-  const [moonTexture, setMoonTexture] = useState<THREE.Texture | null>(
-    () => rawTextureCache.get('/textures/Moon_Flat.jpg') ?? null
+  const [moonTexture, setMoonTexture] = useState<THREE.Texture | null>(() =>
+    getCachedTexture('/textures/Moon_Flat.jpg')
   );
 
   useEffect(() => {
-    const cached = rawTextureCache.get('/textures/Moon_Flat.jpg');
+    const cached = getCachedTexture('/textures/Moon_Flat.jpg');
     if (cached) {
       return;
     }
 
     let cancelled = false;
-    const loader = new THREE.TextureLoader();
-
-    loader.load(
-      '/textures/Moon_Flat.jpg',
-      (tex) => {
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.anisotropy = 8;
-        tex.generateMipmaps = true;
-        tex.minFilter = THREE.LinearMipmapLinearFilter;
-        tex.magFilter = THREE.LinearFilter;
-        tex.needsUpdate = true;
-        rawTextureCache.set('/textures/Moon_Flat.jpg', tex);
-        if (!cancelled) {
-          setMoonTexture(tex);
-        }
-      },
-      undefined,
-      () => {
+    loadTextureByUrl('/textures/Moon_Flat.jpg')
+      .then((tex) => {
+        if (!cancelled) setMoonTexture(tex);
+      })
+      .catch(() => {
         if (!cancelled) setMoonTexture(null);
-      }
-    );
+      });
 
     return () => {
       cancelled = true;
@@ -541,6 +288,48 @@ interface PlanetCoreProps {
   prefersReducedMotion: boolean;
   activeTargetRegionId: string | null;
   activeGroundStationId: string | null;
+  onTextureStatusChange?: (body: CelestialBodyId, status: TextureLoadStatus) => void;
+}
+
+interface PlanetTextureState {
+  body: CelestialBodyId;
+  rawTexture: THREE.Texture | null;
+  earthMaps: DerivedPlanetMaps | null;
+  proceduralMaps: DerivedPlanetMaps | null;
+  status: TextureLoadStatus;
+}
+
+function resolveSyncPlanetTextureState(celestialBody: CelestialBodyId): PlanetTextureState {
+  const manifest = getCelestialTextureConfig(celestialBody);
+  if (manifest.materialMode === 'procedural') {
+    return {
+      body: celestialBody,
+      rawTexture: null,
+      earthMaps: null,
+      proceduralMaps: getProceduralPlanetMaps(celestialBody),
+      status: 'procedural',
+    };
+  }
+
+  const cached = manifest.textureUrl ? getCachedTexture(manifest.textureUrl) : null;
+  if (cached) {
+    const earthMaps = manifest.useDerivedEarthPbr ? getEarthDerivedMaps(cached.image) : null;
+    return {
+      body: celestialBody,
+      rawTexture: cached,
+      earthMaps,
+      proceduralMaps: null,
+      status: 'loaded',
+    };
+  }
+
+  return {
+    body: celestialBody,
+    rawTexture: null,
+    earthMaps: null,
+    proceduralMaps: null,
+    status: 'loading',
+  };
 }
 
 function PlanetCore({
@@ -555,27 +344,20 @@ function PlanetCore({
   prefersReducedMotion,
   activeTargetRegionId,
   activeGroundStationId,
+  onTextureStatusChange,
 }: PlanetCoreProps) {
   const groupRef = useRef<THREE.Group>(null);
   const cloudRef = useRef<THREE.Mesh>(null);
   const planetMatRef = useRef<THREE.MeshStandardMaterial>(null);
 
   const texManifest = getCelestialTextureConfig(celestialBody);
-  const initialTexUrl = texManifest.textureUrl;
-
-  const [rawTexture, setRawTexture] = useState<THREE.Texture | null>(() =>
-    initialTexUrl ? (rawTextureCache.get(initialTexUrl) ?? null) : null
+  const [texState, setTexState] = useState<PlanetTextureState>(() =>
+    resolveSyncPlanetTextureState(celestialBody)
   );
-  const [earthMaps, setEarthMaps] = useState<DerivedEarthMaps | null>(() => {
-    if (!texManifest.useDerivedEarthPbr || !initialTexUrl) return null;
-    if (cachedEarthDerivedMaps) return cachedEarthDerivedMaps;
-    const cached = rawTextureCache.get(initialTexUrl);
-    if (cached && cached.image instanceof HTMLImageElement) {
-      cachedEarthDerivedMaps = buildEarthDerivedMaps(cached.image);
-      return cachedEarthDerivedMaps;
-    }
-    return null;
-  });
+
+  // Synchronously derive fallback/cached state if celestialBody prop changes before effect runs
+  const currentTexState =
+    texState.body === celestialBody ? texState : resolveSyncPlanetTextureState(celestialBody);
 
   const cloudTexture = useMemo(() => {
     if (!texManifest.hasClouds) return null;
@@ -584,67 +366,72 @@ function PlanetCore({
 
   useEffect(() => {
     const manifest = getCelestialTextureConfig(celestialBody);
-    const texUrl = manifest.textureUrl;
+    const syncState = resolveSyncPlanetTextureState(celestialBody);
+    setBodyTextureStatus(celestialBody, syncState.status);
 
-    if (!texUrl || rawTextureCache.get(texUrl)) {
+    if (manifest.materialMode !== 'image' || !manifest.textureUrl || syncState.rawTexture) {
       return;
     }
 
     let cancelled = false;
-    const loader = new THREE.TextureLoader();
-
-    loader.load(
-      texUrl,
-      (tex) => {
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.anisotropy = 8;
-        tex.generateMipmaps = true;
-        tex.minFilter = THREE.LinearMipmapLinearFilter;
-        tex.magFilter = THREE.LinearFilter;
-        tex.needsUpdate = true;
-        rawTextureCache.set(texUrl, tex);
-
-        if (manifest.useDerivedEarthPbr && tex.image instanceof HTMLImageElement) {
-          if (!cachedEarthDerivedMaps) {
-            cachedEarthDerivedMaps = buildEarthDerivedMaps(tex.image);
-          }
-          if (!cancelled) {
-            setEarthMaps(cachedEarthDerivedMaps);
-            setRawTexture(tex);
-          }
-          return;
-        }
-        if (!cancelled) {
-          setEarthMaps(null);
-          setRawTexture(tex);
-        }
-      },
-      undefined,
-      () => {
-        if (!cancelled) {
-          setEarthMaps(null);
-          setRawTexture(null);
-        }
-      }
-    );
+    loadTextureByUrl(manifest.textureUrl)
+      .then((tex) => {
+        if (cancelled) return;
+        const earthMaps = manifest.useDerivedEarthPbr ? getEarthDerivedMaps(tex.image) : null;
+        setBodyTextureStatus(celestialBody, 'loaded');
+        onTextureStatusChange?.(celestialBody, 'loaded');
+        setTexState({
+          body: celestialBody,
+          rawTexture: tex,
+          earthMaps,
+          proceduralMaps: null,
+          status: 'loaded',
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setBodyTextureStatus(celestialBody, 'fallback-error');
+        onTextureStatusChange?.(celestialBody, 'fallback-error');
+        setTexState({
+          body: celestialBody,
+          rawTexture: null,
+          earthMaps: null,
+          proceduralMaps: null,
+          status: 'fallback-error',
+        });
+      });
 
     return () => {
       cancelled = true;
     };
-  }, [celestialBody]);
+  }, [celestialBody, onTextureStatusChange]);
 
   const activeColorMap =
     celestialBody === 'EARTH'
-      ? (earthMaps?.colorMap ?? rawTexture)
-      : texManifest.textureUrl
-        ? rawTexture
+      ? (currentTexState.earthMaps?.colorMap ?? currentTexState.rawTexture)
+      : texManifest.materialMode === 'procedural'
+        ? (currentTexState.proceduralMaps?.colorMap ?? null)
+        : currentTexState.rawTexture;
+
+  const activeRoughnessMap =
+    celestialBody === 'EARTH'
+      ? (currentTexState.earthMaps?.roughnessMap ?? null)
+      : texManifest.materialMode === 'procedural'
+        ? (currentTexState.proceduralMaps?.roughnessMap ?? null)
         : null;
+
+  const activeBumpMap =
+    celestialBody === 'EARTH'
+      ? (currentTexState.earthMaps?.bumpMap ?? null)
+      : celestialBody === 'MOON'
+        ? currentTexState.rawTexture
+        : (currentTexState.proceduralMaps?.bumpMap ?? null);
 
   useEffect(() => {
     if (planetMatRef.current) {
       planetMatRef.current.needsUpdate = true;
     }
-  }, [activeColorMap, earthMaps]);
+  }, [activeColorMap, activeBumpMap, activeRoughnessMap]);
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
@@ -672,14 +459,14 @@ function PlanetCore({
     celestialBody === 'EARTH'
       ? activeColorMap
         ? '#ffffff'
-        : '#1b4f8c'
-      : celestialBody === 'MARS'
-        ? '#c45937'
-        : celestialBody === 'MOON'
-          ? activeColorMap
-            ? '#e6ebf2'
-            : '#8d949e'
-          : '#6c6860';
+        : texManifest.fallbackColor
+      : celestialBody === 'MOON'
+        ? activeColorMap
+          ? '#e6ebf2'
+          : texManifest.fallbackColor
+        : activeColorMap
+          ? '#ffffff'
+          : texManifest.fallbackColor;
 
   const regionMarkers = useMemo(
     () =>
@@ -711,19 +498,17 @@ function PlanetCore({
         />
         <meshStandardMaterial
           ref={planetMatRef}
-          key={`${celestialBody}-${activeColorMap ? 'tex' : 'solid'}-${earthMaps ? 'pbr' : 'std'}`}
+          key={`${celestialBody}-${activeColorMap ? 'tex' : 'solid'}-${currentTexState.earthMaps ? 'pbr' : currentTexState.proceduralMaps ? 'proc' : 'std'}`}
           map={activeColorMap}
-          roughnessMap={celestialBody === 'EARTH' ? (earthMaps?.roughnessMap ?? null) : null}
-          bumpMap={
-            celestialBody === 'EARTH'
-              ? (earthMaps?.bumpMap ?? null)
-              : celestialBody === 'MOON'
-                ? rawTexture
-                : null
-          }
-          bumpScale={celestialBody === 'EARTH' ? 0.015 : celestialBody === 'MOON' ? 0.02 : 0}
+          roughnessMap={activeRoughnessMap}
+          bumpMap={activeBumpMap}
+          bumpScale={activeBumpMap ? texManifest.bumpScale : 0}
           color={baseColor}
-          roughness={celestialBody === 'EARTH' && earthMaps ? 1.0 : 0.84}
+          roughness={
+            activeRoughnessMap
+              ? 1.0
+              : texManifest.roughness
+          }
           metalness={0.04}
         />
       </mesh>
@@ -833,6 +618,15 @@ export function EarthScene({
   const [showClouds, setShowClouds] = useState(true);
   const [rotatePlanet, setRotatePlanet] = useState(() => !prefersReducedMotion);
   const [cameraPreset, setCameraPreset] = useState<EarthCameraPreset>('OVERVIEW');
+  const texManifest = getCelestialTextureConfig(celestialBody);
+  const [asyncStatus, setAsyncStatus] = useState<{
+    body: CelestialBodyId;
+    status: TextureLoadStatus;
+  } | null>(null);
+  const textureStatus =
+    asyncStatus?.body === celestialBody
+      ? asyncStatus.status
+      : resolveSyncPlanetTextureState(celestialBody).status;
 
   const isSimDriven = syncToMissionTime || currentMetSeconds > 0;
   const effectiveGroundStations = showGroundStations && !ambientMode;
@@ -858,6 +652,8 @@ export function EarthScene({
         data-testid="earth-scene"
         data-primary-body={celestialBody}
         data-moon-background={String(celestialBody === 'EARTH' && showMoonInBackground)}
+        data-texture-url={texManifest.textureUrl ?? 'procedural'}
+        data-texture-status={textureStatus}
         className={containerClasses}
       >
         {/* Non-overlapping top flex HUD bar */}
@@ -998,6 +794,7 @@ export function EarthScene({
               prefersReducedMotion={prefersReducedMotion}
               activeTargetRegionId={activeTargetRegionId}
               activeGroundStationId={activeGroundStationId}
+              onTextureStatusChange={(body, status) => setAsyncStatus({ body, status })}
             />
 
             {celestialBody === 'EARTH' && showMoonInBackground && (

@@ -22,8 +22,9 @@ cd Go-No-Go && npx wrangler pages deploy dist --project-name go-no-go
 
 - **Cloudflare Pages Git Integration (Dashboard Manual Step)**:
   - **Root directory**: `Go-No-Go`
-  - **Build command**: `npm run build`
+  - **Build command**: `npm ci && npm run build`
   - **Build output directory**: `dist`
+  - **Production branch**: `main`
   - **Compatibility date**: `2026-11-01` (matches `Go-No-Go/wrangler.toml`)
 - **Note**: Not executed against live Cloudflare in this audit (manual Cloudflare authentication/dashboard configuration required).
 

@@ -1,0 +1,3 @@
+[submodule "Resources/mission-viz"]
+	path = Resources/mission-viz
+	url = https://github.com/nasa/mission-viz.git

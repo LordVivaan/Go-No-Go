@@ -153,4 +153,80 @@ describe('GO / NO-GO Phase 5 & 6 — Deterministic Orbital Simulation & Operatio
     expect(expertCount).toBeGreaterThanOrEqual(stdCount);
     expect(firstExpertStress).toBeGreaterThan(0);
   });
+
+  it('executes a full 72h standard mission autonomously with FDIR anomaly handling and deterministic repeatability', () => {
+    const runAutonomousMission = (seed: number) => {
+      useMissionStore.getState().resetMissionForNewAttempt();
+      useMissionStore.getState().applyPreset('preset-lunar-nominal-go');
+      useSimulationStore.getState().initializeSimulation(seed, true);
+
+      // Fast-forward entire 72h duration with zero manual operator commands
+      useSimulationStore.getState().fastForwardSimulationHours(72, 60);
+      const simState = useSimulationStore.getState();
+      const report = simState.completeMissionAndGenerateReport();
+      return { simState, report };
+    };
+
+    const runA = runAutonomousMission(20261114);
+    const runB = runAutonomousMission(20261114);
+
+    // Autonomous FDIR should resolve all anomalies triggered prior to final 30m
+    expect(runA.report.outcome).toBe('SUCCESS');
+    expect(runA.report.totalScore).toBeGreaterThanOrEqual(78);
+    expect(runA.report.anomaliesResolvedCount).toBe(runA.report.anomaliesTotalCount);
+
+    // Identical initial conditions produce deterministic outcomes
+    expect(runA.simState.currentTelemetry).toEqual(runB.simState.currentTelemetry);
+    expect(runA.report.totalScore).toBe(runB.report.totalScore);
+    expect(runA.report.scienceScore).toBe(runB.report.scienceScore);
+    expect(runA.report.completionReliabilityScore).toBe(runB.report.completionReliabilityScore);
+    expect(runA.report.resourceEfficiencyScore).toBe(runB.report.resourceEfficiencyScore);
+    expect(runA.report.dataCommsScore).toBe(runB.report.dataCommsScore);
+    expect(runA.report.riskCollabScore).toBe(runB.report.riskCollabScore);
+  });
+
+  it('propagates spacecraft configuration changes across all coupled engineering domains and enforces 35/25/15/15/10 scoring weights', () => {
+    const store = useMissionStore.getState();
+    store.resetMissionForNewAttempt();
+    store.applyPreset('preset-lunar-nominal-go');
+    const baseline = resolveMissionEntities(useMissionStore.getState());
+
+    // Change payload, propulsion, and avionics subsystem
+    store.toggleInstrument('inst-sar-xband-compact');
+    store.selectSubsystem('PROPULSION', 'prop-biprop-high-dv');
+    store.selectSubsystem('AVIONICS', 'avio-rad-tolerant-single');
+    const modified = resolveMissionEntities(useMissionStore.getState());
+
+    expect(modified.engineering.mass.wetMassKg).not.toBe(baseline.engineering.mass.wetMassKg);
+    expect(modified.engineering.power.sunlightLoadW).not.toBe(
+      baseline.engineering.power.sunlightLoadW
+    );
+    expect(modified.engineering.propulsion.availableDeltaVMps).not.toBe(
+      baseline.engineering.propulsion.availableDeltaVMps
+    );
+    expect(modified.engineering.thermal.equilibriumHotTempC).not.toBe(
+      baseline.engineering.thermal.equilibriumHotTempC
+    );
+    expect(modified.engineering.commsData.dataGeneratedPerDayGb).not.toBe(
+      baseline.engineering.commsData.dataGeneratedPerDayGb
+    );
+    expect(modified.engineering.reliability.combinedMissionReliability).not.toBe(
+      baseline.engineering.reliability.combinedMissionReliability
+    );
+    expect(modified.engineering.budget.totalSpentMusd).not.toBe(
+      baseline.engineering.budget.totalSpentMusd
+    );
+
+    // Verify 35/25/15/15/10 scoring weights sum and bounds
+    expect(baseline.scenario.scoringProfile?.scienceWeight).toBe(35);
+    expect(baseline.scenario.scoringProfile?.reliabilityWeight).toBe(25);
+    expect(baseline.scenario.scoringProfile?.resourceWeight).toBe(15);
+    expect(baseline.scenario.scoringProfile?.commsWeight).toBe(15);
+    expect(baseline.scenario.scoringProfile?.riskCollabWeight).toBe(10);
+    expect(baseline.scorePreview.scienceScore).toBeLessThanOrEqual(35);
+    expect(baseline.scorePreview.completionReliabilityScore).toBeLessThanOrEqual(25);
+    expect(baseline.scorePreview.resourceEfficiencyScore).toBeLessThanOrEqual(15);
+    expect(baseline.scorePreview.dataCommsScore).toBeLessThanOrEqual(15);
+    expect(baseline.scorePreview.riskCollabScore).toBeLessThanOrEqual(10);
+  });
 });

@@ -24,12 +24,33 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
       }
     });
 
-    // Stage 1 — Mission Briefing (integrated startup experience over 3D Earth + Moon)
+    await page.route('**/rest/v1/rpc/get_mission_leaderboard', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          totalCount: 0,
+          entries: [],
+          playerEntry: null,
+          nearbyEntries: [],
+        }),
+      });
+    });
+
+    // Stage 1 — Mission Briefing (Earth primary on initial startup with Moon in background)
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
     await expect(page.getByText(/GO \/ NO-GO/i).first()).toBeVisible();
     await expect(page.locator('canvas').first()).toBeVisible();
-    await expect(page.getByTestId('shell-gate-status')).toContainText('GO');
+    await expect(page.getByTestId('earth-scene')).toHaveAttribute('data-primary-body', 'EARTH');
+    await expect(page.getByTestId('earth-scene')).toHaveAttribute('data-moon-background', 'true');
+    await expect(page.getByTestId('shell-gate-status')).toContainText('ENG: GO');
+
+    // Toggle to inspect Lunar target body prominently, then back to Earth View
+    await page.getByRole('button', { name: /Target: MOON/i }).click();
+    await expect(page.getByTestId('earth-scene')).toHaveAttribute('data-primary-body', 'MOON');
+    await page.getByRole('button', { name: /Earth View/i }).click();
+    await expect(page.getByTestId('earth-scene')).toHaveAttribute('data-primary-body', 'EARTH');
 
     // Switch difficulty to HARD -> cost cap drops from $145.0M to $133.4M, then back to STANDARD
     await page.getByRole('radio', { name: /Hard/i }).click();
@@ -39,13 +60,14 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
 
     await page.screenshot({ path: '/tmp/gng-e2e-stage1-briefing.png' });
 
-    // Stage 2 — Mission Architecture (no Save Config control, NO-GO triggers gate)
+    // Stage 2 — Mission Architecture (uses Engineering Planning Sheets, allows free experimentation)
     await page.getByRole('button', { name: /Start Mission Architecture/i }).click();
     await expect(page).toHaveURL(/\/architecture/);
+    await expect(page.getByTestId('architecture-planning-sheet')).toBeVisible();
     await expect(page.getByRole('button', { name: /Save Config/i })).toHaveCount(0);
 
     await page.getByRole('button', { name: /6U CubeSat Optical Scout/i }).click();
-    await expect(page.getByTestId('shell-gate-status')).toContainText('NO-GO');
+    await expect(page.getByTestId('shell-gate-status')).toContainText('ENG: NO-GO');
 
     // Stage 3 — Orbit & Launch Planning
     await page.getByRole('link', { name: /^ORBIT & LAUNCH$/i }).click();
@@ -53,37 +75,50 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
     await expect(page.getByLabel(/Perigee orbital altitude in kilometers/i)).toBeVisible();
     await expect(page.getByLabel(/Apogee orbital altitude in kilometers/i)).toBeVisible();
 
-    // Attempt Stage 5 navigation while NO-GO -> blocked by Launch Hold guard
+    // Selecting an Earth orbit preset previews Earth; selecting Lunar orbit previews Moon
+    await page.getByRole('button', { name: /400 km ISS LEO/i }).click();
+    await expect(page.getByTestId('earth-scene')).toHaveAttribute('data-primary-body', 'EARTH');
+    await page.getByRole('button', { name: /100 km Lunar Polar/i }).click();
+    await expect(page.getByTestId('earth-scene')).toHaveAttribute('data-primary-body', 'MOON');
+
+    // Navigating directly to Stage 5 before user authorization prompts for Stage 4 launch decision
     await page
       .locator('nav[aria-label="Mission Gameplay Stages"]')
       .getByRole('link', { name: /05.*Operations/i })
       .click();
     await expect(page).toHaveURL(/\/operations/);
-    await expect(page.getByText(/LAUNCH HOLD · NO-GO FLIGHT READINESS VERDICT/i)).toBeVisible();
+    await expect(page.getByText(/AWAITING MISSION DIRECTOR LAUNCH AUTHORIZATION/i)).toBeVisible();
 
-    // Stage 4 — Mission Verification: strict NO-GO lock
-    await page.getByRole('link', { name: /Review Verification Gates/i }).click();
+    // Stage 4 — Engineering Verification: advisory NO-GO still allows user GO with risk acknowledgement
+    await page.getByRole('link', { name: /Go to Launch Decision/i }).click();
     await expect(page).toHaveURL(/\/verification/);
-    await expect(page.getByRole('button', { name: /LAUNCH LOCKED — NO-GO/i })).toBeDisabled();
-    await expect(page.getByRole('button', { name: /INITIATE LAUNCH SEQUENCE/i })).toHaveCount(0);
+    await expect(page.getByTestId('final-launch-decision-panel')).toBeVisible();
+    await expect(page.getByRole('button', { name: /GO — Authorize Launch/i })).toBeEnabled();
+    await page.getByRole('button', { name: /GO — Authorize Launch/i }).click();
+    await expect(page.getByText(/Acknowledge Critical Flight Risks Before Launch/i)).toBeVisible();
+    await page.getByRole('button', { name: /Cancel & Review Design/i }).click();
 
     // Recover spacecraft via Stage 2 Baseline GO preset
-    await page.getByRole('link', { name: /RESOLVE IN ARCHITECTURE/i }).click();
+    await page
+      .locator('nav[aria-label="Mission Gameplay Stages"]')
+      .getByRole('link', { name: /02.*Architecture/i })
+      .click();
     await expect(page).toHaveURL(/\/architecture/);
     await page.getByRole('button', { name: /Lunar Scout Polar Baseline/i }).click();
-    await expect(page.getByTestId('shell-gate-status')).toContainText('GO');
+    await expect(page.getByTestId('shell-gate-status')).toContainText('ENG: GO');
 
-    // Return to Stage 4 -> Launch Transition Overlay -> Stage 5 Operations
+    // Return to Stage 4 -> Authorize Launch -> Full-Screen Launch Sequence -> Auto-Start Operations
     await page.getByRole('link', { name: /04.*Verification/i }).click();
     await expect(page).toHaveURL(/\/verification/);
     await page.screenshot({ path: '/tmp/gng-e2e-stage4-verification.png' });
 
-    await page.getByRole('button', { name: /INITIATE LAUNCH SEQUENCE/i }).click();
-    await expect(page.getByRole('dialog', { name: /Integrated Launch Sequence/i })).toBeVisible();
-    await page.getByRole('button', { name: /Enter Mission Operations/i }).click();
+    await page.getByRole('button', { name: /GO — Authorize Launch/i }).click();
+    await expect(page.getByTestId('launch-sequence-overlay')).toBeVisible();
+    await page.getByRole('button', { name: /Skip to Orbital Insertion/i }).click();
 
-    // Stage 5 — Mission Operations: toggle payload, step +24h, complete to Debrief
+    // Stage 5 — Mission Operations starts automatically (PAUSE button visible = running)
     await expect(page).toHaveURL(/\/operations/);
+    await expect(page.getByRole('button', { name: /PAUSE/i })).toBeVisible();
     await page.getByRole('button', { name: /\+24H SIM/i }).click();
     await page.getByRole('button', { name: /COMPLETE & DEBRIEF/i }).click();
 
@@ -91,7 +126,7 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
     await expect(page).toHaveURL(/\/debrief/);
     await expect(page.getByText(/Overall Normalized Mission Score/i)).toBeVisible();
     await expect(page.getByLabel(/Replay mission telemetry timeline/i)).toBeVisible();
-    await expect(page.getByText(/International Leaderboard Offline/i)).toBeVisible();
+    await expect(page.getByText(/No verified runs recorded yet/i)).toBeVisible();
     await page.getByRole('button', { name: /Country \/ Region/i }).click();
     await expect(page.getByLabel(/Filter country/i)).toBeVisible();
     await page.screenshot({ path: '/tmp/gng-e2e-stage6-debrief.png', fullPage: true });
@@ -99,7 +134,7 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
     // Start New Attempt resets cleanly to Stage 1
     await page.getByRole('button', { name: /START NEW ATTEMPT/i }).click();
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByTestId('shell-gate-status')).toContainText('GO');
+    await expect(page.getByTestId('shell-gate-status')).toContainText('ENG: GO');
 
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
@@ -110,10 +145,24 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
     page,
   }) => {
     const viewports = [
-      { name: 'desktop', width: 1440, height: 900 },
-      { name: 'tablet', width: 820, height: 1180 },
+      { name: 'desktop-fhd', width: 1919, height: 1079 },
+      { name: 'desktop-hd', width: 1366, height: 768 },
+      { name: 'tablet', width: 1024, height: 768 },
       { name: 'mobile', width: 390, height: 844 },
     ];
+
+    await page.route('**/rest/v1/rpc/get_mission_leaderboard', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          totalCount: 0,
+          entries: [],
+          playerEntry: null,
+          nearbyEntries: [],
+        }),
+      });
+    });
 
     for (const vp of viewports) {
       await page.setViewportSize({ width: vp.width, height: vp.height });
@@ -244,8 +293,8 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
       .getByRole('link', { name: /04.*Verification/i })
       .click();
     await expect(page).toHaveURL(/\/verification/);
-    await page.getByRole('button', { name: /INITIATE LAUNCH SEQUENCE/i }).click();
-    await page.getByRole('button', { name: /Enter Mission Operations/i }).click();
+    await page.getByRole('button', { name: /GO — Authorize Launch/i }).click();
+    await page.getByRole('button', { name: /Skip to Orbital Insertion/i }).click();
     await expect(page).toHaveURL(/\/operations/);
     await expect(page.getByRole('button', { name: /EO Scene/i })).toHaveCount(0);
 
@@ -375,8 +424,8 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
       .getByRole('link', { name: /04.*Verification/i })
       .click();
     await expect(page).toHaveURL(/\/verification/);
-    await page.getByRole('button', { name: /INITIATE LAUNCH SEQUENCE/i }).click();
-    await page.getByRole('button', { name: /Enter Mission Operations/i }).click();
+    await page.getByRole('button', { name: /GO — Authorize Launch/i }).click();
+    await page.getByRole('button', { name: /Skip to Orbital Insertion/i }).click();
     await expect(page).toHaveURL(/\/operations/);
     await expect(page.getByRole('button', { name: /^Weather$/i })).toHaveCount(0);
 
@@ -385,5 +434,135 @@ test.describe('GO / NO-GO — 6-Stage End-to-End Mission Flow', () => {
     await page.getByRole('button', { name: /Expand Technical Debrief & KPP Matrix/i }).click();
     await expect(page.getByText(/Weather Snapshot Provenance \(Meteomatics\)/i)).toBeVisible();
     await expect(page.getByText(/Brahmaputra-Ganges Delta · forecast_24h \(FORECAST\)/i)).toBeVisible();
+  });
+});
+
+test.describe('Leaderboard States & Supabase RPC Mocking', () => {
+  test('renders populated PROVISIONAL and VERIFIED standings from mocked RPC response', async ({
+    page,
+  }) => {
+    await page.route('**/rest/v1/rpc/get_mission_leaderboard', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          totalCount: 2,
+          entries: [
+            {
+              id: 'entry-verified-1',
+              rank: 1,
+              playerAlias: 'ARTEMIS-LEAD',
+              countryCode: 'US',
+              missionCode: 'LUNAR SCOUT',
+              difficulty: 'STANDARD',
+              seasonCode: '2026-S1',
+              configurationName: 'GNG Baseline',
+              totalScore: 98.4,
+              scienceScore: 34.5,
+              reliabilityScore: 24.5,
+              efficiencyScore: 15.0,
+              commsScore: 14.4,
+              riskCollabScore: 10.0,
+              grade: 'S',
+              outcome: 'SUCCESS',
+              completionDurationSec: 86400,
+              dataDownlinkedGb: 62.4,
+              regionsMappedCount: 3,
+              isVerified: true,
+              verificationStatus: 'VERIFIED',
+              achievedAtIso: '2026-11-15T10:00:00Z',
+            },
+            {
+              id: 'entry-provisional-2',
+              rank: 2,
+              playerAlias: 'SELENE-02',
+              countryCode: 'JP',
+              missionCode: 'LUNAR SCOUT',
+              difficulty: 'STANDARD',
+              seasonCode: '2026-S1',
+              configurationName: 'Lunar Polar Custom',
+              totalScore: 94.1,
+              scienceScore: 32.0,
+              reliabilityScore: 23.1,
+              efficiencyScore: 14.5,
+              commsScore: 14.5,
+              riskCollabScore: 10.0,
+              grade: 'S',
+              outcome: 'SUCCESS',
+              completionDurationSec: 86400,
+              dataDownlinkedGb: 55.2,
+              regionsMappedCount: 3,
+              isVerified: false,
+              verificationStatus: 'PROVISIONAL',
+              achievedAtIso: '2026-11-15T11:00:00Z',
+            },
+          ],
+          playerEntry: null,
+          nearbyEntries: [],
+        }),
+      });
+    });
+
+    await page.goto('/debrief');
+    await expect(page.getByText('ARTEMIS-LEAD')).toBeVisible();
+    await expect(page.getByText('SELENE-02')).toBeVisible();
+    await expect(page.getByText('VERIFIED', { exact: true })).toBeVisible();
+    await expect(page.getByText('PROVISIONAL', { exact: true })).toBeVisible();
+  });
+
+  test('renders empty standings when mocked RPC returns zero entries', async ({ page }) => {
+    await page.route('**/rest/v1/rpc/get_mission_leaderboard', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          totalCount: 0,
+          entries: [],
+          playerEntry: null,
+          nearbyEntries: [],
+        }),
+      });
+    });
+
+    await page.goto('/debrief');
+    await expect(page.getByText(/No verified runs recorded yet/i)).toBeVisible();
+  });
+
+  test('renders concise RPC error with expandable technical details on PGRST202 schema cache failure', async ({
+    page,
+  }) => {
+    await page.route('**/rest/v1/rpc/get_mission_leaderboard', async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 'PGRST202',
+          details: null,
+          hint: null,
+          message:
+            'Could not find the function public.get_mission_leaderboard(p_country_code, p_difficulty, p_limit, p_mission_code, p_offset, p_player_token, p_season_code) in the schema cache',
+        }),
+      });
+    });
+
+    await page.goto('/debrief');
+    await expect(
+      page.getByText('Leaderboard unavailable: RPC function not found.', { exact: true })
+    ).toBeVisible();
+    await page.getByText('Technical details').click();
+    await expect(page.getByText(/in the schema cache/i)).toBeVisible();
+  });
+
+  test('renders temporary connection error when leaderboard network request fails', async ({
+    page,
+  }) => {
+    await page.route('**/rest/v1/rpc/get_mission_leaderboard', async (route) => {
+      await route.abort('failed');
+    });
+
+    await page.goto('/debrief');
+    await expect(
+      page.getByText('Leaderboard temporarily unavailable: unable to reach server.')
+    ).toBeVisible();
   });
 });

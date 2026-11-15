@@ -100,6 +100,8 @@ export const MISSION_PRESETS: MissionPreset[] = [
   },
 ];
 
+export type LaunchAuthorizationStatus = 'PENDING' | 'GO' | 'NO_GO';
+
 export interface MissionStoreState {
   configurationName: string;
   difficulty: MissionDifficulty;
@@ -113,6 +115,8 @@ export interface MissionStoreState {
   customApogeeKm: number | null;
   customInclinationDeg: number | null;
   launchVehicleId: string;
+  userLaunchAuthorization: LaunchAuthorizationStatus;
+  riskAcknowledged: boolean;
 
   // Actions
   setConfigurationName: (name: string) => void;
@@ -128,6 +132,8 @@ export interface MissionStoreState {
     apogeeKm?: number | null
   ) => void;
   selectLaunchVehicle: (launchVehicleId: string) => void;
+  authorizeLaunch: (riskAcknowledged?: boolean) => void;
+  holdLaunch: () => void;
   applyPreset: (presetId: string) => void;
   resetMissionForNewAttempt: () => void;
 }
@@ -297,10 +303,13 @@ export const useMissionStore = create<MissionStoreState>()((set, get) => ({
   customApogeeKm: null,
   customInclinationDeg: null,
   launchVehicleId: defaultPreset.launchVehicleId,
+  userLaunchAuthorization: 'PENDING',
+  riskAcknowledged: false,
 
   setConfigurationName: (name) => set({ configurationName: name }),
 
-  setDifficulty: (difficulty) => set({ difficulty }),
+  setDifficulty: (difficulty) =>
+    set({ difficulty, userLaunchAuthorization: 'PENDING', riskAcknowledged: false }),
 
   selectScenario: (scenarioId) => {
     const scenario =
@@ -312,10 +321,13 @@ export const useMissionStore = create<MissionStoreState>()((set, get) => ({
       customPerigeeKm: null,
       customApogeeKm: null,
       customInclinationDeg: null,
+      userLaunchAuthorization: 'PENDING',
+      riskAcknowledged: false,
     });
   },
 
-  selectBus: (busId) => set({ busId }),
+  selectBus: (busId) =>
+    set({ busId, userLaunchAuthorization: 'PENDING', riskAcknowledged: false }),
 
   selectSubsystem: (category, componentId) =>
     set((state) => ({
@@ -323,6 +335,8 @@ export const useMissionStore = create<MissionStoreState>()((set, get) => ({
         ...state.subsystemIds,
         [category]: componentId,
       },
+      userLaunchAuthorization: 'PENDING',
+      riskAcknowledged: false,
     })),
 
   toggleInstrument: (instrumentId) =>
@@ -331,10 +345,14 @@ export const useMissionStore = create<MissionStoreState>()((set, get) => ({
       if (exists) {
         return {
           instrumentIds: state.instrumentIds.filter((id) => id !== instrumentId),
+          userLaunchAuthorization: 'PENDING',
+          riskAcknowledged: false,
         };
       }
       return {
         instrumentIds: [...state.instrumentIds, instrumentId],
+        userLaunchAuthorization: 'PENDING',
+        riskAcknowledged: false,
       };
     }),
 
@@ -345,6 +363,8 @@ export const useMissionStore = create<MissionStoreState>()((set, get) => ({
       customPerigeeKm: null,
       customApogeeKm: null,
       customInclinationDeg: null,
+      userLaunchAuthorization: 'PENDING',
+      riskAcknowledged: false,
     }),
 
   setCustomOrbitParams: (perigeeKm, inclinationDeg, apogeeKm) =>
@@ -353,9 +373,24 @@ export const useMissionStore = create<MissionStoreState>()((set, get) => ({
       customPerigeeKm: perigeeKm,
       customApogeeKm: apogeeKm !== undefined ? apogeeKm : perigeeKm,
       customInclinationDeg: inclinationDeg,
+      userLaunchAuthorization: 'PENDING',
+      riskAcknowledged: false,
     }),
 
-  selectLaunchVehicle: (launchVehicleId) => set({ launchVehicleId }),
+  selectLaunchVehicle: (launchVehicleId) =>
+    set({ launchVehicleId, userLaunchAuthorization: 'PENDING', riskAcknowledged: false }),
+
+  authorizeLaunch: (riskAcknowledged = false) =>
+    set({
+      userLaunchAuthorization: 'GO',
+      riskAcknowledged,
+    }),
+
+  holdLaunch: () =>
+    set({
+      userLaunchAuthorization: 'NO_GO',
+      riskAcknowledged: false,
+    }),
 
   applyPreset: (presetId) => {
     const preset = MISSION_PRESETS.find((p) => p.id === presetId);
@@ -372,6 +407,8 @@ export const useMissionStore = create<MissionStoreState>()((set, get) => ({
       customApogeeKm: null,
       customInclinationDeg: null,
       launchVehicleId: preset.launchVehicleId,
+      userLaunchAuthorization: 'PENDING',
+      riskAcknowledged: false,
     });
   },
 
@@ -391,6 +428,8 @@ export const useMissionStore = create<MissionStoreState>()((set, get) => ({
       customApogeeKm: null,
       customInclinationDeg: null,
       launchVehicleId: defaultPreset.launchVehicleId,
+      userLaunchAuthorization: 'PENDING',
+      riskAcknowledged: false,
     });
   },
 }));

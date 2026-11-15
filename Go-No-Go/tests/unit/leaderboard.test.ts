@@ -322,6 +322,7 @@ describe('International Leaderboard Validation, Offline Integrity & RPC Client',
     expect(mockRpc).toHaveBeenLastCalledWith(
       'get_mission_leaderboard',
       expect.objectContaining({
+        p_mission_code: 'FLOODWATCH',
         p_country_code: 'DE',
         p_difficulty: 'HARD',
         p_season_code: '2026-S1',
@@ -329,5 +330,43 @@ describe('International Leaderboard Validation, Offline Integrity & RPC Client',
         p_offset: 15,
       })
     );
+  });
+
+  it('formats missing PostgREST RPC schema-cache errors into a concise user-facing message while preserving technical details', async () => {
+    mockSupabaseState.configured = true;
+    const rawError =
+      'Could not find the function public.get_mission_leaderboard(p_country_code, p_difficulty, p_limit, p_mission_code, p_offset, p_player_token, p_season_code) in the schema cache';
+    mockRpc.mockResolvedValueOnce({ data: null, error: { message: rawError } });
+
+    const boardRes = await fetchMissionLeaderboard({
+      missionCode: 'LUNAR SCOUT',
+      difficulty: 'STANDARD',
+      seasonCode: '2026-S1',
+      countryCode: null,
+      limit: 15,
+      offset: 0,
+    });
+
+    expect(boardRes.status).toBe('ERROR');
+    expect(boardRes.errorMessage).toContain('Leaderboard unavailable: RPC function not found.');
+    expect(boardRes.errorMessage).toContain('schema cache');
+  });
+
+  it('formats network connection failures as a temporary unavailable error', async () => {
+    mockSupabaseState.configured = true;
+    mockRpc.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    const boardRes = await fetchMissionLeaderboard({
+      missionCode: 'LUNAR SCOUT',
+      difficulty: 'STANDARD',
+      seasonCode: '2026-S1',
+      countryCode: null,
+      limit: 15,
+      offset: 0,
+    });
+
+    expect(boardRes.status).toBe('ERROR');
+    expect(boardRes.errorMessage).toContain('Leaderboard temporarily unavailable: connection error');
+    expect(boardRes.errorMessage).toContain('Failed to fetch');
   });
 });

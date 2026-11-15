@@ -6,6 +6,7 @@ import { EarthScene } from '../scenes/EarthScene';
 import { useMissionStore, useResolvedMission } from '../store/missionStore';
 import { OrbitSelector } from '../components/OrbitSelector';
 import { ResourcePanel } from '../components/ResourcePanel';
+import { TechTerm } from '../components/TechTerm';
 
 export function OrbitPlanner() {
   const launchVehicleId = useMissionStore((s) => s.launchVehicleId);
@@ -32,16 +33,17 @@ export function OrbitPlanner() {
             Select Target Orbit & Launch Vehicle
           </h1>
           <p className="text-xs text-[#8E9BAD]">
-            Altitude, inclination, and launcher throw mass directly govern eclipse duration,
-            ground-station passes/day, RF link margin, and Δv reserves.
+            Altitude, inclination (<TechTerm termKey="SSO" />), and launcher throw mass govern
+            eclipse duration, ground-station passes/day, <TechTerm termKey="RF" /> link margin, and{' '}
+            <TechTerm termKey="DELTA_V" /> reserves.
           </p>
         </div>
 
         <Link
           to="/verification"
-          className="flex items-center gap-2 rounded-full bg-[#42D9F5] px-5 py-2.5 text-xs font-bold text-[#080B12] transition hover:bg-[#42D9F5]/90"
+          className="flex items-center gap-2 rounded-md border border-cyan-300/60 bg-[#42D9F5] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#080B12] transition hover:bg-[#42D9F5]/90"
         >
-          VERIFY GO / NO-GO
+          ENGINEERING VERIFICATION
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Link>
       </div>
@@ -82,13 +84,12 @@ export function OrbitPlanner() {
                   <button
                     key={lv.id}
                     type="button"
+                    data-selected={selected}
                     onClick={() => selectLaunchVehicle(lv.id)}
-                    className={`flex flex-col justify-between rounded-2xl border p-4 text-left transition-colors ${
-                      selected
-                        ? incompatible
-                          ? 'border-2 border-[#FF5364] bg-[#261119]/90'
-                          : 'border-2 border-[#42D9F5] bg-[#141E2E]/90'
-                        : 'border-[#F1F5FA]/12 bg-[#0D1422]/75 hover:border-[#F1F5FA]/28'
+                    className={`gng-glass-option flex flex-col justify-between p-3.5 text-left ${
+                      selected && incompatible
+                        ? '!border-[#FF5364] !bg-[#261119]/85'
+                        : ''
                     }`}
                   >
                     <div>
@@ -152,14 +153,16 @@ export function OrbitPlanner() {
 
         <div className="flex flex-col gap-4 lg:col-span-5">
           <EarthScene
-            celestialBody={scenario.celestialBody}
+            celestialBody={orbit.celestialBody}
             orbit={orbit}
             periodSeconds={engineering.orbital.orbitalPeriodSec}
             swathWidthKm={maxSwathKm}
-            targetRegions={scenario.targetRegions}
-            showGroundStations={true}
+            targetRegions={
+              orbit.celestialBody === scenario.celestialBody ? scenario.targetRegions : []
+            }
+            showGroundStations={orbit.celestialBody === 'EARTH'}
             showSwathCone={true}
-            showMoonInBackground={scenario.celestialBody === 'EARTH'}
+            showMoonInBackground={orbit.celestialBody === 'EARTH'}
             heightClass="h-[360px]"
           />
           <ResourcePanel engineering={engineering} budgetCapMusd={scenario.budgetCapMusd} />

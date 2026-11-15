@@ -3,10 +3,13 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { GROUND_STATIONS } from '../data/groundStations';
+import { getShortTargetRegionName } from '../data/displayNames';
 import { OMEGA_EARTH_RAD_S } from '../engine/constants';
+import { getBodyConstants } from '../engine/orbital';
 import type { CelestialBodyId, TargetRegion } from '../types/mission';
 import type { OrbitalParameters } from '../types/spacecraft';
 import { OrbitPath } from './OrbitPath';
+import { getCelestialTextureConfig } from './textureManifest';
 import { SceneCanvasGuard } from './WebGLFallback';
 import { usePrefersReducedMotion } from './webglUtils';
 
@@ -473,10 +476,12 @@ function CameraController({
   preset,
   ambientMode,
   prefersReducedMotion,
+  maxOrbitRadiusUnits,
 }: {
   preset: EarthCameraPreset;
   ambientMode: boolean;
   prefersReducedMotion: boolean;
+  maxOrbitRadiusUnits: number;
 }) {
   const { camera, size } = useThree();
   const isPortrait = size.height > size.width;
@@ -493,15 +498,16 @@ function CameraController({
       return;
     }
 
+    const baseDist = Math.max(3.85, maxOrbitRadiusUnits * 2.15) * (isPortrait ? 1.25 : 1.0);
     const pos: [number, number, number] =
       preset === 'POLAR'
-        ? [0.1, 3.05, 0.35]
+        ? [0.12 * (baseDist / 3.85), baseDist * 0.96, 0.42 * (baseDist / 3.85)]
         : preset === 'EQUATORIAL'
-          ? [3.1, 0.15, 0.3]
-          : [0, 1.35, 2.75];
+          ? [baseDist * 0.98, 0.18 * (baseDist / 3.85), 0.36 * (baseDist / 3.85)]
+          : [0, baseDist * 0.44, baseDist * 0.89];
     camera.position.set(pos[0], pos[1], pos[2]);
     camera.lookAt(0, 0, 0);
-  }, [preset, ambientMode, isPortrait, camera]);
+  }, [preset, ambientMode, isPortrait, maxOrbitRadiusUnits, camera]);
 
   useFrame((state) => {
     if (!ambientMode || prefersReducedMotion) return;
@@ -554,20 +560,16 @@ function PlanetCore({
   const cloudRef = useRef<THREE.Mesh>(null);
   const planetMatRef = useRef<THREE.MeshStandardMaterial>(null);
 
-  const initialTexUrl =
-    celestialBody === 'EARTH'
-      ? '/textures/EarthImage.jpg'
-      : celestialBody === 'MOON'
-        ? '/textures/Moon_Flat.jpg'
-        : null;
+  const texManifest = getCelestialTextureConfig(celestialBody);
+  const initialTexUrl = texManifest.textureUrl;
 
   const [rawTexture, setRawTexture] = useState<THREE.Texture | null>(() =>
     initialTexUrl ? (rawTextureCache.get(initialTexUrl) ?? null) : null
   );
   const [earthMaps, setEarthMaps] = useState<DerivedEarthMaps | null>(() => {
-    if (celestialBody !== 'EARTH') return null;
+    if (!texManifest.useDerivedEarthPbr || !initialTexUrl) return null;
     if (cachedEarthDerivedMaps) return cachedEarthDerivedMaps;
-    const cached = rawTextureCache.get('/textures/EarthImage.jpg');
+    const cached = rawTextureCache.get(initialTexUrl);
     if (cached && cached.image instanceof HTMLImageElement) {
       cachedEarthDerivedMaps = buildEarthDerivedMaps(cached.image);
       return cachedEarthDerivedMaps;
@@ -576,24 +578,15 @@ function PlanetCore({
   });
 
   const cloudTexture = useMemo(() => {
-    if (celestialBody !== 'EARTH') return null;
+    if (!texManifest.hasClouds) return null;
     return getProceduralCloudTexture();
-  }, [celestialBody]);
+  }, [texManifest.hasClouds]);
 
   useEffect(() => {
-    const texUrl =
-      celestialBody === 'EARTH'
-        ? '/textures/EarthImage.jpg'
-        : celestialBody === 'MOON'
-          ? '/textures/Moon_Flat.jpg'
-          : null;
+    const manifest = getCelestialTextureConfig(celestialBody);
+    const texUrl = manifest.textureUrl;
 
-    if (!texUrl) {
-      return;
-    }
-
-    const cachedRaw = rawTextureCache.get(texUrl);
-    if (cachedRaw) {
+    if (!texUrl || rawTextureCache.get(texUrl)) {
       return;
     }
 
@@ -611,7 +604,7 @@ function PlanetCore({
         tex.needsUpdate = true;
         rawTextureCache.set(texUrl, tex);
 
-        if (celestialBody === 'EARTH' && tex.image instanceof HTMLImageElement) {
+        if (manifest.useDerivedEarthPbr && tex.image instanceof HTMLImageElement) {
           if (!cachedEarthDerivedMaps) {
             cachedEarthDerivedMaps = buildEarthDerivedMaps(tex.image);
           }
@@ -643,7 +636,7 @@ function PlanetCore({
   const activeColorMap =
     celestialBody === 'EARTH'
       ? (earthMaps?.colorMap ?? rawTexture)
-      : celestialBody === 'MOON'
+      : texManifest.textureUrl
         ? rawTexture
         : null;
 
@@ -844,6 +837,11 @@ export function EarthScene({
   const isSimDriven = syncToMissionTime || currentMetSeconds > 0;
   const effectiveGroundStations = showGroundStations && !ambientMode;
   const effectiveTargets = ambientMode ? [] : targetRegions;
+  const bodyConstants = getBodyConstants(orbit.celestialBody);
+  const maxOrbitRadiusUnits =
+    (bodyConstants.radiusKm + Math.max(orbit.altitudePerigeeKm, orbit.altitudeApogeeKm)) /
+    Math.max(1, bodyConstants.radiusKm);
+  const initialCamDist = Math.max(3.85, maxOrbitRadiusUnits * 2.15);
 
   const containerClasses = ambientMode
     ? `relative w-full ${heightClass} overflow-hidden bg-[#080B12] ${className}`
@@ -856,7 +854,12 @@ export function EarthScene({
       heightClass={heightClass}
       className={ambientMode ? 'rounded-none border-0' : className}
     >
-      <div className={containerClasses}>
+      <div
+        data-testid="earth-scene"
+        data-primary-body={celestialBody}
+        data-moon-background={String(celestialBody === 'EARTH' && showMoonInBackground)}
+        className={containerClasses}
+      >
         {/* Non-overlapping top flex HUD bar */}
         {showHudControls && (
           <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-center justify-between gap-2">
@@ -936,13 +939,14 @@ export function EarthScene({
                   return (
                     <span
                       key={reg.id}
+                      title={reg.name}
                       className={`rounded-full border px-2.5 py-1 font-mono text-[11px] backdrop-blur-md ${
                         isActive
                           ? 'border-[#38D996] bg-[#141E2E]/90 text-[#38D996]'
                           : 'border-[#F1F5FA]/15 bg-[#080B12]/80 text-[#F1F5FA]'
                       }`}
                     >
-                      {reg.name} ({Math.round(reg.cloudCoverFraction * 100)}%)
+                      {getShortTargetRegionName(reg)} ({Math.round(reg.cloudCoverFraction * 100)}%)
                     </span>
                   );
                 })}
@@ -954,7 +958,9 @@ export function EarthScene({
         <Canvas
           dpr={prefersReducedMotion ? [1, 1] : [1, 1.75]}
           camera={{
-            position: ambientMode ? [-0.42, 0.25, 3.45] : [0, 1.35, 2.75],
+            position: ambientMode
+              ? [-0.42, 0.25, 3.45]
+              : [0, initialCamDist * 0.44, initialCamDist * 0.89],
             fov: ambientMode ? 42 : 44,
           }}
         >
@@ -963,6 +969,7 @@ export function EarthScene({
             preset={cameraPreset}
             ambientMode={ambientMode}
             prefersReducedMotion={prefersReducedMotion}
+            maxOrbitRadiusUnits={maxOrbitRadiusUnits}
           />
           <ambientLight intensity={0.28} />
           <directionalLight position={[6, 2.5, 4.5]} intensity={2.1} color="#fff7ea" />
@@ -1013,8 +1020,8 @@ export function EarthScene({
           {!ambientMode && (
             <OrbitControls
               enablePan={false}
-              minDistance={1.45}
-              maxDistance={6.8}
+              minDistance={1.6}
+              maxDistance={Math.max(8.0, maxOrbitRadiusUnits * 3.2)}
               dampingFactor={0.08}
             />
           )}

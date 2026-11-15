@@ -20,7 +20,7 @@ import {
   submitVerifiedMissionScore,
   validatePlayerAlias,
 } from '../services/leaderboardService';
-import { isSupabaseConfigured } from '../services/supabaseClient';
+import { isSupabaseConfigured, supabaseConfigReason } from '../services/supabaseClient';
 import { useSimulationStore } from '../store/simulationStore';
 import type { EngineeringSummary } from '../types/engineering';
 import {
@@ -77,6 +77,7 @@ export function LeaderboardPanel({
   const [playerCountry, setPlayerCountry] = useState<string>(initialIdentity.countryCode ?? '');
 
   const [submitting, setSubmitting] = useState(false);
+  const [submittedRunId, setSubmittedRunId] = useState<string | null>(null);
   const [submitResult, setSubmitResult] = useState<LeaderboardSubmissionResult | null>(null);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [board, setBoard] = useState<LeaderboardQueryResult>(() => ({
@@ -124,6 +125,8 @@ export function LeaderboardPanel({
     };
   }, [activeCountryParam, activeSeasonParam, filterDifficulty, filterMission, offset]);
 
+  const alreadySubmitted = submittedRunId === report.runId;
+
   const canSubmitScore =
     !isLivePreview &&
     engineering.validation.overallStatus !== 'NO_GO' &&
@@ -144,7 +147,7 @@ export function LeaderboardPanel({
   };
 
   const handleSubmit = async () => {
-    if (!canSubmitScore || submitting) return;
+    if (!canSubmitScore || submitting || alreadySubmitted) return;
     setSubmitting(true);
     setSubmitResult(null);
 
@@ -171,6 +174,7 @@ export function LeaderboardPanel({
     setSubmitting(false);
 
     if (result.ok) {
+      setSubmittedRunId(report.runId);
       setFilterMission(scenario.code);
       setFilterDifficulty(difficulty);
       setFilterSeason(CURRENT_SEASON_CODE);
@@ -360,9 +364,9 @@ export function LeaderboardPanel({
           <button
             type="button"
             onClick={() => void handleSubmit()}
-            disabled={!canSubmitScore || !aliasCheck.valid || submitting}
+            disabled={!canSubmitScore || !aliasCheck.valid || submitting || alreadySubmitted}
             className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
-              canSubmitScore && aliasCheck.valid
+              canSubmitScore && aliasCheck.valid && !alreadySubmitted
                 ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
                 : 'cursor-not-allowed bg-slate-800 text-slate-500'
             }`}
@@ -370,7 +374,9 @@ export function LeaderboardPanel({
             <Send className="h-3.5 w-3.5" />
             {submitting
               ? 'Verifying...'
-              : `Submit Run (${report.totalScore.toFixed(1)} · ${difficulty})`}
+              : alreadySubmitted
+                ? 'Run Submitted'
+                : `Submit Run (${report.totalScore.toFixed(1)} · ${difficulty})`}
           </button>
         </div>
 
@@ -447,13 +453,15 @@ export function LeaderboardPanel({
       {/* Standings Body */}
       <div className="mt-4">
         {board.status === 'OFFLINE' ? (
-          <div className="rounded-xl border border-white/10 bg-black/30 p-5 text-center">
-            <WifiOff className="mx-auto h-6 w-6 text-slate-400" />
+          <div className="gng-glass-slice p-5 text-center">
+            <WifiOff className="mx-auto h-6 w-6 text-slate-400" aria-hidden="true" />
             <div className="mt-2 text-sm font-semibold text-slate-200">
               International Leaderboard Offline
             </div>
             <p className="mx-auto mt-1 max-w-lg text-xs text-slate-400">
-              Supabase environment credentials are not configured in this browser session. Your local mission score (
+              {supabaseConfigReason ??
+                'Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY.'}{' '}
+              Your local mission score (
               <span className="font-mono font-semibold text-cyan-300">
                 {report.totalScore.toFixed(1)} / 100 · {difficulty}
               </span>
@@ -461,8 +469,27 @@ export function LeaderboardPanel({
             </p>
           </div>
         ) : board.status === 'ERROR' ? (
-          <div className="rounded-xl border border-red-400/25 bg-red-500/10 p-4 text-xs text-red-200">
-            Unable to load leaderboard standings: {board.errorMessage ?? 'Unknown server error'}
+          <div className="min-w-0 break-words rounded-xl border border-red-400/25 bg-red-500/10 p-4 text-xs text-red-200">
+            {board.errorMessage?.startsWith('Leaderboard unavailable: RPC function not found.') ||
+            board.errorMessage?.startsWith('Leaderboard temporarily unavailable: connection error') ? (
+              <>
+                <div className="font-semibold">
+                  {board.errorMessage.startsWith('Leaderboard unavailable: RPC function not found.')
+                    ? 'Leaderboard unavailable: RPC function not found.'
+                    : 'Leaderboard temporarily unavailable: unable to reach server.'}
+                </div>
+                <details className="mt-2 text-[11px] text-red-300/85">
+                  <summary className="cursor-pointer select-none hover:text-red-100">
+                    Technical details
+                  </summary>
+                  <p className="mt-1 break-all font-mono">{board.errorMessage}</p>
+                </details>
+              </>
+            ) : (
+              <div>
+                Unable to load leaderboard standings: {board.errorMessage ?? 'Unknown server error'}
+              </div>
+            )}
           </div>
         ) : loading ? (
           <div className="rounded-xl border border-white/10 bg-black/25 p-5 text-center text-xs text-slate-400">

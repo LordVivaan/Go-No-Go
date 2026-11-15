@@ -385,7 +385,7 @@ export async function submitVerifiedMissionScore(params: {
     });
 
     if (error) {
-      return { ok: false, authWarning, error: error.message };
+      return { ok: false, authWarning, error: formatLeaderboardRpcError(error.message) };
     }
 
     const payload = (data ?? {}) as Record<string, unknown>;
@@ -421,12 +421,35 @@ export async function submitVerifiedMissionScore(params: {
       verificationStatus,
     };
   } catch (err) {
+    const rawMessage = err instanceof Error ? err.message : 'Unable to reach verification server.';
     return {
       ok: false,
       authWarning,
-      error: err instanceof Error ? err.message : 'Unable to reach verification server.',
+      error: formatLeaderboardRpcError(rawMessage),
     };
   }
+}
+
+function formatLeaderboardRpcError(rawMessage: string): string {
+  const lower = rawMessage.toLowerCase();
+  if (
+    lower.includes('could not find the function') ||
+    lower.includes('schema cache') ||
+    lower.includes('pgrst202')
+  ) {
+    return `Leaderboard unavailable: RPC function not found. (${rawMessage})`;
+  }
+  if (
+    lower.includes('failed to fetch') ||
+    lower.includes('networkerror') ||
+    lower.includes('fetch failed') ||
+    lower.includes('load failed') ||
+    lower.includes('network request failed') ||
+    lower.includes('unable to reach')
+  ) {
+    return `Leaderboard temporarily unavailable: connection error (${rawMessage})`;
+  }
+  return rawMessage;
 }
 
 /** Fetches ranked international leaderboard standings without fabricating placeholder entries when offline. */
@@ -478,7 +501,7 @@ export async function fetchMissionLeaderboard(
         entries: [],
         playerEntry: null,
         nearbyEntries: [],
-        errorMessage: error.message,
+        errorMessage: formatLeaderboardRpcError(error.message),
       };
     }
 
@@ -493,13 +516,14 @@ export async function fetchMissionLeaderboard(
         : [],
     };
   } catch (err) {
+    const rawMessage = err instanceof Error ? err.message : 'Leaderboard query failed.';
     return {
       status: 'ERROR',
       totalCount: 0,
       entries: [],
       playerEntry: null,
       nearbyEntries: [],
-      errorMessage: err instanceof Error ? err.message : 'Leaderboard query failed.',
+      errorMessage: formatLeaderboardRpcError(rawMessage),
     };
   }
 }

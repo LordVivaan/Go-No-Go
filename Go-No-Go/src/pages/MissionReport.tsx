@@ -22,6 +22,7 @@ import {
 } from 'recharts';
 import { FormulaInspectorModal } from '../components/FormulaInspectorModal';
 import { LeaderboardPanel } from '../components/LeaderboardPanel';
+import { getCompactConfigName } from '../data/displayNames';
 import { getRecordedEoDatasetUsage } from '../services/planetaryComputerService';
 import { getRecordedWeatherUsage } from '../services/weatherService';
 import {
@@ -34,6 +35,8 @@ import { useSimulationStore } from '../store/simulationStore';
 export function MissionReport() {
   const navigate = useNavigate();
   const difficulty = useMissionStore((s) => s.difficulty);
+  const userLaunchAuthorization = useMissionStore((s) => s.userLaunchAuthorization);
+  const riskAcknowledged = useMissionStore((s) => s.riskAcknowledged);
   const resetMissionForNewAttempt = useMissionStore((s) => s.resetMissionForNewAttempt);
   const configSignature = useMissionStore(getMissionConfigSignature);
   const { scenario, instruments, engineering, scorePreview } = useResolvedMission();
@@ -73,7 +76,7 @@ export function MissionReport() {
         max: 25,
       },
       {
-        name: 'Margin',
+        name: 'Resource Eff.',
         earned: Number(report.resourceEfficiencyScore.toFixed(1)),
         max: 15,
       },
@@ -114,9 +117,14 @@ export function MissionReport() {
               Post-Flight Debrief — {scenario.code}
             </span>
             <span
-              className={`gng-glass-pill px-3 py-0.5 font-mono-tech text-[11px] font-bold ${outcomeBadgeCls}`}
+              className={`gng-glass-pill px-2.5 py-0.5 font-mono-tech text-[11px] font-bold ${outcomeBadgeCls}`}
             >
               {report.outcome}
+            </span>
+            <span className="gng-glass-slice px-2 py-0.5 font-mono-tech text-[10px] text-slate-300">
+              ENG: {engineering.validation.overallStatus === 'NO_GO' ? 'NO-GO' : engineering.validation.overallStatus} ·
+              AUTH: {userLaunchAuthorization === 'NO_GO' ? 'NO-GO' : userLaunchAuthorization}
+              {riskAcknowledged ? ' (RISK OVERRIDE)' : ''}
             </span>
             {isLivePreview && (
               <span className="gng-glass-pill border-[#FFB547]/40 px-2.5 py-0.5 font-mono-tech text-[11px] text-[#FFB547]">
@@ -124,8 +132,11 @@ export function MissionReport() {
               </span>
             )}
           </div>
-          <h1 className="font-display text-2xl font-bold text-[#F1F5FA] sm:text-3xl">
-            {report.configurationName}
+          <h1
+            title={report.configurationName}
+            className="break-words font-display text-2xl font-bold text-[#F1F5FA] sm:text-3xl"
+          >
+            {getCompactConfigName(report.configurationName)}
           </h1>
           <p className="text-xs text-[#8E9BAD]">
             Overall Normalized Mission Score across 5 aerospace engineering & operations buckets.

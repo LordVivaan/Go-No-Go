@@ -1,4 +1,5 @@
 import { Compass, Orbit } from 'lucide-react';
+import { getShortOrbitName } from '../data/displayNames';
 import { ORBIT_CATALOG } from '../data/orbits';
 import { computeSunSynchronousInclinationDeg } from '../engine/orbital';
 import type { OrbitalMechanicsResult } from '../types/engineering';
@@ -32,14 +33,15 @@ export function OrbitSelector({
               key={orb.id}
               type="button"
               onClick={() => onSelectOrbit(orb.id)}
-              className={`flex flex-col justify-between rounded-2xl border p-4 text-left transition-colors ${
+              title={orb.name}
+              className={`flex h-full min-w-0 flex-col justify-between rounded-2xl border p-4 text-left transition-colors ${
                 active
                   ? 'border-2 border-[#42D9F5] bg-[#141E2E]/90'
                   : 'border-[#F1F5FA]/12 bg-[#0D1422]/75 hover:border-[#F1F5FA]/28'
               }`}
             >
-              <div>
-                <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-mono text-[11px] font-bold text-[#42D9F5]">
                     {orb.regime} · {orb.celestialBody}
                   </span>
@@ -47,10 +49,12 @@ export function OrbitSelector({
                     {orb.altitudePerigeeKm} km · i={orb.inclinationDeg}°
                   </span>
                 </div>
-                <h4 className="mt-1 font-display text-sm font-bold text-[#F1F5FA]">
-                  {orb.name}
+                <h4 className="mt-1 break-words font-display text-sm font-bold text-[#F1F5FA]">
+                  {getShortOrbitName(orb)}
                 </h4>
-                <p className="mt-1 text-xs text-[#8E9BAD]">{orb.description}</p>
+                <p className="mt-1 break-words text-xs leading-relaxed text-[#8E9BAD]">
+                  {orb.description}
+                </p>
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2 border-t border-[#F1F5FA]/10 pt-2.5 font-mono text-[11px] tabular-nums text-[#8E9BAD]">

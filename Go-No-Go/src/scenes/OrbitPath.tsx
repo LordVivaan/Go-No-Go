@@ -97,16 +97,16 @@ export function OrbitPath({
       {/* Current Spacecraft Position Marker & Nadir Swath Footprint */}
       <group position={spacecraftPosition}>
         <mesh>
-          <sphereGeometry args={[subtle ? 0.026 : 0.032, 16, 16]} />
+          <sphereGeometry args={[subtle ? 0.028 : 0.038, 16, 16]} />
           <meshBasicMaterial color="#38D996" />
         </mesh>
         <mesh>
-          <ringGeometry args={[0.045, 0.062, 24]} />
+          <ringGeometry args={[0.052, 0.072, 24]} />
           <meshBasicMaterial
             color="#42D9F5"
             side={2}
             transparent
-            opacity={subtle ? 0.55 : 0.85}
+            opacity={subtle ? 0.55 : 0.9}
           />
         </mesh>
       </group>

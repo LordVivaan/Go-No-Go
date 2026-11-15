@@ -69,6 +69,8 @@ function greatCircleDistanceDeg(
  * Computes the next deterministic TelemetryPoint and any generated SimEvents
  * over a time step `dtSeconds` (default 60 seconds).
  */
+export const FDIR_AUTO_MITIGATION_DELAY_SEC = 1800;
+
 export function stepSimulationState(
   prev: TelemetryPoint,
   dtSeconds: number,
@@ -77,6 +79,7 @@ export function stepSimulationState(
   nextPoint: TelemetryPoint;
   newEvents: SimEvent[];
   triggeredAnomaly: ActiveAnomaly | null;
+  resolvedAnomalyIds: string[];
   mappedRegionId: string | null;
 } {
   const {
@@ -239,8 +242,28 @@ export function stepSimulationState(
     }
   }
 
-  // 4. Check Deterministic Anomaly Injection
-  const unresolvedAnomalies = activeAnomalies.filter((a) => !a.resolved);
+  // 4. Check Deterministic Anomaly Injection & Autonomous FDIR Recovery
+  const resolvedAnomalyIds: string[] = [];
+  const unresolvedAnomalies: ActiveAnomaly[] = [];
+  for (const anom of activeAnomalies) {
+    if (anom.resolved) continue;
+    // Autonomous Fault Detection, Isolation & Recovery (FDIR) resolves anomalies after 30 min if bus has power
+    if (prev.batterySocPct > 0 && metSeconds - anom.triggeredAtMetSec >= FDIR_AUTO_MITIGATION_DELAY_SEC) {
+      resolvedAnomalyIds.push(anom.id);
+      newEvents.push({
+        id: `evt-fdir-${metSeconds}-${anom.code}`,
+        metSeconds,
+        type: 'OPERATOR_COMMAND',
+        severity: 'INFO',
+        subsystem: anom.subsystem,
+        title: `FDIR AUTO-RESOLVED: ${anom.title}`,
+        description: `Onboard autonomy executed ${anom.mitigationLabel}. Subsystem telemetry returning to nominal envelope.`,
+      });
+    } else {
+      unresolvedAnomalies.push(anom);
+    }
+  }
+
   const triggeredAnomaly = sampleDeterministicAnomaly({
     metSeconds,
     seed,
@@ -500,6 +523,7 @@ export function stepSimulationState(
     nextPoint,
     newEvents,
     triggeredAnomaly,
+    resolvedAnomalyIds,
     mappedRegionId,
   };
 }

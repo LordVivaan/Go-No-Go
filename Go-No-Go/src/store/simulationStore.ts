@@ -35,7 +35,7 @@ export interface SimulationStoreState {
   completedReport: MissionScoreReport | null;
 
   // Actions
-  initializeSimulation: (customSeed?: number) => void;
+  initializeSimulation: (customSeed?: number, autoStart?: boolean) => void;
   syncWithMissionIfIdle: () => void;
   tickSimulation: (dtSeconds?: number) => void;
   advanceSimulationByElapsedSeconds: (simDeltaSeconds: number) => void;
@@ -120,11 +120,11 @@ export const useSimulationStore = create<SimulationStoreState>((set, get) => ({
   mappedRegionIds: [],
   completedReport: null,
 
-  initializeSimulation: (customSeed = 20261114) => {
+  initializeSimulation: (customSeed = 20261114, autoStart = false) => {
     const initialPoint = createInitialTelemetry();
     const sig = getMissionConfigSignature(useMissionStore.getState());
     set({
-      isRunning: false,
+      isRunning: autoStart,
       seed: customSeed,
       simAccumulatorSec: 0,
       missionSignature: sig,
@@ -168,7 +168,7 @@ export const useSimulationStore = create<SimulationStoreState>((set, get) => ({
     const { difficulty, scenario, bus, subsystems, orbit, instruments, engineering } =
       resolveMissionEntities(missionState);
 
-    const { nextPoint, newEvents, triggeredAnomaly, mappedRegionId } =
+    const { nextPoint, newEvents, triggeredAnomaly, resolvedAnomalyIds, mappedRegionId } =
       stepSimulationState(state.currentTelemetry, dtSeconds, {
         scenario,
         orbit,
@@ -186,9 +186,26 @@ export const useSimulationStore = create<SimulationStoreState>((set, get) => ({
         downlinkPriorityActive: state.downlinkPriorityActive,
       });
 
-    const updatedAnomalies = triggeredAnomaly
-      ? [...state.activeAnomalies, triggeredAnomaly]
-      : state.activeAnomalies;
+    let updatedAnomalies = state.activeAnomalies.map((a) =>
+      resolvedAnomalyIds.includes(a.id) ? { ...a, resolved: true } : a
+    );
+    if (triggeredAnomaly) {
+      updatedAnomalies = [...updatedAnomalies, triggeredAnomaly];
+    }
+
+    const resolvedCommands = new Set(
+      state.activeAnomalies
+        .filter((a) => resolvedAnomalyIds.includes(a.id))
+        .map((a) => a.mitigationCommand)
+    );
+    const updatedPrevEvents =
+      resolvedCommands.size > 0
+        ? state.events.map((e) =>
+            e.recommendedCommandId && resolvedCommands.has(e.recommendedCommandId)
+              ? { ...e, resolved: true }
+              : e
+          )
+        : state.events;
 
     const updatedMappedRegions =
       mappedRegionId && !state.mappedRegionIds.includes(mappedRegionId)
@@ -204,7 +221,7 @@ export const useSimulationStore = create<SimulationStoreState>((set, get) => ({
       batteryExhaustedDuringRun: exhaustedNow,
       currentTelemetry: nextPoint,
       telemetryHistory: [...state.telemetryHistory.slice(-359), nextPoint],
-      events: [...newEvents.reverse(), ...state.events].slice(0, 120),
+      events: [...newEvents.reverse(), ...updatedPrevEvents].slice(0, 120),
       activeAnomalies: updatedAnomalies,
       mappedRegionIds: updatedMappedRegions,
     });
@@ -238,7 +255,7 @@ export const useSimulationStore = create<SimulationStoreState>((set, get) => ({
     let isRunning = state.isRunning;
 
     for (let i = 0; i < fixedSteps; i++) {
-      const { nextPoint, newEvents, triggeredAnomaly, mappedRegionId } =
+      const { nextPoint, newEvents, triggeredAnomaly, resolvedAnomalyIds, mappedRegionId } =
         stepSimulationState(curr, FIXED_PHYSICS_DT_SECONDS, {
           scenario,
           orbit,
@@ -257,6 +274,21 @@ export const useSimulationStore = create<SimulationStoreState>((set, get) => ({
         });
 
       curr = nextPoint;
+      if (resolvedAnomalyIds.length > 0) {
+        const resolvedCmds = new Set(
+          anomalies
+            .filter((a) => resolvedAnomalyIds.includes(a.id))
+            .map((a) => a.mitigationCommand)
+        );
+        anomalies = anomalies.map((a) =>
+          resolvedAnomalyIds.includes(a.id) ? { ...a, resolved: true } : a
+        );
+        events = events.map((e) =>
+          e.recommendedCommandId && resolvedCmds.has(e.recommendedCommandId)
+            ? { ...e, resolved: true }
+            : e
+        );
+      }
       if (triggeredAnomaly) anomalies = [...anomalies, triggeredAnomaly];
       if (mappedRegionId && !mapped.includes(mappedRegionId)) {
         mapped = [...mapped, mappedRegionId];
@@ -269,7 +301,8 @@ export const useSimulationStore = create<SimulationStoreState>((set, get) => ({
         safeMode = true;
       }
       history.push(nextPoint);
-      if (nextPoint.systemHealthPct <= 0) {
+      const durationSec = scenario.simulationDurationDays * 86400;
+      if (nextPoint.systemHealthPct <= 0 || nextPoint.metSeconds >= durationSec) {
         isRunning = false;
         break;
       }
@@ -306,7 +339,7 @@ export const useSimulationStore = create<SimulationStoreState>((set, get) => ({
     const sampleStride = Math.max(1, Math.floor(steps / 120));
 
     for (let i = 0; i < steps; i++) {
-      const { nextPoint, newEvents, triggeredAnomaly, mappedRegionId } =
+      const { nextPoint, newEvents, triggeredAnomaly, resolvedAnomalyIds, mappedRegionId } =
         stepSimulationState(curr, stepSec, {
           scenario,
           orbit,
@@ -325,6 +358,21 @@ export const useSimulationStore = create<SimulationStoreState>((set, get) => ({
         });
 
       curr = nextPoint;
+      if (resolvedAnomalyIds.length > 0) {
+        const resolvedCmds = new Set(
+          anomalies
+            .filter((a) => resolvedAnomalyIds.includes(a.id))
+            .map((a) => a.mitigationCommand)
+        );
+        anomalies = anomalies.map((a) =>
+          resolvedAnomalyIds.includes(a.id) ? { ...a, resolved: true } : a
+        );
+        events = events.map((e) =>
+          e.recommendedCommandId && resolvedCmds.has(e.recommendedCommandId)
+            ? { ...e, resolved: true }
+            : e
+        );
+      }
       if (triggeredAnomaly) anomalies = [...anomalies, triggeredAnomaly];
       if (mappedRegionId && !mapped.includes(mappedRegionId)) {
         mapped = [...mapped, mappedRegionId];

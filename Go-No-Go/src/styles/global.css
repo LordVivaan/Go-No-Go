@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --gng-bg-primary: #080B12;
-  --gng-bg-secondary: #0D1422;
-  --gng-bg-panel: #141E2E;
+  --gng-bg-primary: #060911;
+  --gng-bg-secondary: #0B111E;
+  --gng-bg-panel: #101827;
   --gng-accent-primary: #42D9F5;
   --gng-accent-secondary: #3978F6;
   --gng-status-success: #38D996;
@@ -12,12 +12,13 @@
   --gng-text-primary: #F1F5FA;
   --gng-text-secondary: #8E9BAD;
 
-  --gng-border: rgba(241, 245, 250, 0.13);
-  --gng-border-subtle: rgba(142, 155, 173, 0.18);
+  --gng-border: rgba(241, 245, 250, 0.11);
+  --gng-border-subtle: rgba(142, 155, 173, 0.15);
   --gng-border-strong: rgba(241, 245, 250, 0.24);
-  --gng-glass-bg: rgba(20, 30, 46, 0.66);
-  --gng-glass-card-bg: rgba(13, 20, 34, 0.72);
-  --gng-glass-pill-bg: rgba(13, 20, 34, 0.78);
+  --gng-glass-bg: rgba(12, 19, 32, 0.62);
+  --gng-glass-card-bg: rgba(9, 14, 25, 0.64);
+  --gng-glass-slice-bg: rgba(13, 20, 34, 0.56);
+  --gng-glass-pill-bg: rgba(11, 17, 30, 0.72);
 
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -59,34 +60,133 @@ body {
   font-family: var(--font-sans);
 }
 
-/* Apple Liquid Glass-inspired aerospace surfaces (strictly palette-derived, zero neon glow) */
+/* Thin-Slice Liquid Glass aerospace surfaces */
 .gng-glass-panel {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   background: var(--gng-glass-bg);
-  backdrop-filter: blur(18px) saturate(125%);
-  -webkit-backdrop-filter: blur(18px) saturate(125%);
-  border-radius: 24px;
-  border: 1px solid rgba(241, 245, 250, 0.14);
+  backdrop-filter: blur(14px) saturate(118%);
+  -webkit-backdrop-filter: blur(14px) saturate(118%);
+  border-radius: 10px;
+  border: 1px solid rgba(241, 245, 250, 0.11);
   box-shadow:
-    0 18px 48px rgba(4, 7, 13, 0.55),
-    inset 0 1px 0 rgba(241, 245, 250, 0.18);
+    0 12px 32px rgba(3, 6, 12, 0.48),
+    inset 0 1px 0 rgba(241, 245, 250, 0.14);
 }
 
 .gng-glass-card {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   background: var(--gng-glass-card-bg);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-radius: 18px;
-  border: 1px solid rgba(241, 245, 250, 0.11);
-  box-shadow: inset 0 1px 0 rgba(241, 245, 250, 0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 8px;
+  border: 1px solid rgba(241, 245, 250, 0.09);
+  box-shadow: inset 0 1px 0 rgba(241, 245, 250, 0.08);
+}
+
+.gng-glass-slice {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  background: var(--gng-glass-slice-bg);
+  backdrop-filter: blur(10px) saturate(115%);
+  -webkit-backdrop-filter: blur(10px) saturate(115%);
+  border-radius: 6px;
+  border: 1px solid rgba(241, 245, 250, 0.1);
+  box-shadow: inset 0 1px 0 rgba(241, 245, 250, 0.09);
+}
+
+.gng-glass-option {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  background: rgba(11, 17, 30, 0.54);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 6px;
+  border: 1px solid rgba(241, 245, 250, 0.1);
+  box-shadow: inset 0 1px 0 rgba(241, 245, 250, 0.07);
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.gng-glass-option:hover {
+  border-color: rgba(241, 245, 250, 0.24);
+  background: rgba(16, 25, 42, 0.72);
+}
+
+.gng-glass-option[data-selected='true'] {
+  border-color: rgba(66, 217, 245, 0.58);
+  background: rgba(20, 34, 54, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(66, 217, 245, 0.26),
+    inset 2px 0 0 rgba(66, 217, 245, 0.85);
 }
 
 .gng-glass-pill {
   background: var(--gng-glass-pill-bg);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-radius: 9999px;
-  border: 1px solid rgba(241, 245, 250, 0.14);
-  box-shadow: inset 0 1px 0 rgba(241, 245, 250, 0.14);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 6px;
+  border: 1px solid rgba(241, 245, 250, 0.12);
+  box-shadow: inset 0 1px 0 rgba(241, 245, 250, 0.1);
+}
+
+.gng-glass-divider {
+  border-color: rgba(241, 245, 250, 0.09);
+}
+
+/* Native <dialog> modal scroll containment and backdrop styling */
+dialog:modal {
+  overscroll-behavior: contain;
+  color: var(--gng-text-primary);
+}
+
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: rgba(4, 9, 20, 0.76);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* Popover & interestfor progressive enhancement */
+[popover]:is(:popover-open, .\:popover-open) {
+  display: block;
+}
+
+@supports (position-area: block-end) {
+  [popover].gng-tech-popover {
+    inset: auto;
+    margin: 0;
+    position-area: block-end span-inline-end;
+    position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+  }
+}
+
+@supports not (position-area: block-end) {
+  [popover].gng-tech-popover {
+    position: fixed;
+    inset: auto 1rem 1rem 1rem;
+    max-width: 28rem;
+    margin: 0 auto;
+  }
+}
+
+/* Visually hidden utility (accessible to screen readers) */
+.visually-hidden:where(:not(:focus-within, :active)) {
+  position: absolute !important;
+  clip-path: inset(50%) !important;
+  overflow: hidden !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  white-space: nowrap !important;
 }
 
 /* Accessible keyboard focus visibility */
@@ -107,11 +207,11 @@ textarea:focus-visible,
 }
 
 ::-webkit-scrollbar-track {
-  background: #080B12;
+  background: #060911;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(142, 155, 173, 0.28);
+  background: rgba(142, 155, 173, 0.25);
   border-radius: 3px;
 }
 
@@ -119,7 +219,7 @@ textarea:focus-visible,
   background: #42D9F5;
 }
 
-/* Telemetry grid background pattern */
+/* Telemetry / Engineering blueprint grid background pattern */
 .bg-telemetry-grid {
   background-image:
     linear-gradient(to right, rgba(66, 217, 245, 0.04) 1px, transparent 1px),

@@ -89,6 +89,18 @@ export function MissionSimulation() {
   const isNoGo = engineering.validation.overallStatus === 'NO_GO';
 
   useEffect(() => {
+    if (!eoModalOpen && !weatherModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setEoModalOpen(false);
+        setWeatherModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [eoModalOpen, weatherModalOpen]);
+
+  useEffect(() => {
     if (isNoGo) return;
     syncWithMissionIfIdle();
   }, [isNoGo, syncWithMissionIfIdle]);

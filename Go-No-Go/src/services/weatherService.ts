@@ -17,8 +17,34 @@ interface ClientCacheEntry {
   expiresAtMs: number;
 }
 
+const WEATHER_PROVENANCE_STORAGE_KEY = 'gng_weather_provenance_v1';
+
+function loadStoredWeatherProvenance(): WeatherProvenanceRecord[] {
+  if (typeof window === 'undefined' || !window.sessionStorage) return [];
+  try {
+    const raw = window.sessionStorage.getItem(WEATHER_PROVENANCE_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistWeatherProvenance(): void {
+  if (typeof window === 'undefined' || !window.sessionStorage) return;
+  try {
+    window.sessionStorage.setItem(
+      WEATHER_PROVENANCE_STORAGE_KEY,
+      JSON.stringify(recordedWeatherProvenance),
+    );
+  } catch {
+    // Gracefully handle storage quota or access issues
+  }
+}
+
 const clientWeatherCache = new Map<string, ClientCacheEntry>();
-const recordedWeatherProvenance: WeatherProvenanceRecord[] = [];
+const recordedWeatherProvenance: WeatherProvenanceRecord[] = loadStoredWeatherProvenance();
 
 export function clearClientWeatherCache(): void {
   clientWeatherCache.clear();
@@ -26,6 +52,13 @@ export function clearClientWeatherCache(): void {
 
 export function clearRecordedWeatherUsage(): void {
   recordedWeatherProvenance.length = 0;
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      window.sessionStorage.removeItem(WEATHER_PROVENANCE_STORAGE_KEY);
+    } catch {
+      // Gracefully handle storage removal issues
+    }
+  }
 }
 
 export function getRecordedWeatherUsage(): WeatherProvenanceRecord[] {
@@ -61,6 +94,7 @@ function recordWeatherUsage(snapshot: NormalizedWeatherSnapshot): void {
   if (recordedWeatherProvenance.length > CLIENT_PROVENANCE_MAX_ENTRIES) {
     recordedWeatherProvenance.length = CLIENT_PROVENANCE_MAX_ENTRIES;
   }
+  persistWeatherProvenance();
 }
 
 function setClientCache(key: string, result: WeatherQueryResult): void {
@@ -100,6 +134,9 @@ export async function fetchBasinWeather({
   if (!bypassClientCache) {
     const cached = clientWeatherCache.get(cacheKey);
     if (cached && cached.expiresAtMs > Date.now()) {
+      if (cached.result.snapshot) {
+        recordWeatherUsage(cached.result.snapshot);
+      }
       return cached.result;
     }
   }

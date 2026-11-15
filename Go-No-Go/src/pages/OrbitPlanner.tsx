@@ -1,30 +1,11 @@
 import { Link } from 'react-router';
 import { ArrowRight, CheckCircle2, Compass, Rocket, XCircle } from 'lucide-react';
 import { LAUNCH_VEHICLES } from '../data/launchVehicles';
+import { getLaunchCapacityForRegimeKg } from '../engine/mass';
 import { EarthScene } from '../scenes/EarthScene';
 import { useMissionStore, useResolvedMission } from '../store/missionStore';
 import { OrbitSelector } from '../components/OrbitSelector';
 import { ResourcePanel } from '../components/ResourcePanel';
-import type { LaunchVehicle, OrbitalParameters } from '../types/spacecraft';
-
-function getLaunchPayloadCapKg(lv: LaunchVehicle, orbit: OrbitalParameters): number {
-  if (
-    orbit.regime === 'GEO' ||
-    orbit.regime === 'MOLNIYA' ||
-    orbit.regime === 'LUNAR_POLAR' ||
-    orbit.regime === 'MARS_SSO' ||
-    orbit.regime === 'ASTEROID_PROXIMITY'
-  ) {
-    return lv.maxMassCislunarKg;
-  }
-  if (orbit.regime === 'MEO') {
-    return Math.round((lv.maxMassSsoKg + lv.maxMassCislunarKg) / 2);
-  }
-  if (orbit.regime === 'SSO_DAWN_DUSK' || orbit.regime === 'SSO_NOON_MIDNIGHT') {
-    return lv.maxMassSsoKg;
-  }
-  return lv.maxMassLeoKg;
-}
 
 export function OrbitPlanner() {
   const launchVehicleId = useMissionStore((s) => s.launchVehicleId);
@@ -91,7 +72,7 @@ export function OrbitPlanner() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {LAUNCH_VEHICLES.map((lv) => {
                 const selected = lv.id === launchVehicleId;
-                const payloadCap = getLaunchPayloadCapKg(lv, orbit);
+                const payloadCap = getLaunchCapacityForRegimeKg(lv, orbit.regime);
                 const supportsFormFactor =
                   !busFormFactor || lv.supportedFormFactors.includes(busFormFactor);
                 const overMass = engineering.mass.wetMassKg > payloadCap;

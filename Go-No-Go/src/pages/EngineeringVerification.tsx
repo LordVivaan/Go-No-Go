@@ -76,6 +76,15 @@ export function EngineeringVerification() {
   const insertionComplete = phaseIndex >= LAUNCH_PHASES.length - 1;
 
   useEffect(() => {
+    if (!launchModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLaunchModalOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [launchModalOpen]);
+
+  useEffect(() => {
     if (!launchModalOpen || isNoGo) return;
     if (phaseIndex >= LAUNCH_PHASES.length - 1) return;
 

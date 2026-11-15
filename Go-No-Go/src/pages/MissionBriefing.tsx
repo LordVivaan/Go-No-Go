@@ -10,7 +10,7 @@ import {
   Target,
   X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { FloodBasinWeatherPanel } from '../components/FloodBasinWeatherPanel';
 import { NasaEarthObservationPanel } from '../components/NasaEarthObservationPanel';
@@ -41,6 +41,18 @@ export function MissionBriefing() {
   const dailyDataTargetGb = Number(
     scenario.kpps.find((k) => k.metricKey === 'dailyDataGb')?.thresholdValue ?? 20
   );
+
+  useEffect(() => {
+    if (!showNasaModal && !showWeatherModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowNasaModal(false);
+        setShowWeatherModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showNasaModal, showWeatherModal]);
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-[#040914]">

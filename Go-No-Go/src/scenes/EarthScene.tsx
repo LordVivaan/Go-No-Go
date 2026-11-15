@@ -18,6 +18,16 @@ interface DerivedEarthMaps {
   bumpMap: THREE.CanvasTexture;
 }
 
+const rawTextureCache = new Map<string, THREE.Texture>();
+let cachedEarthDerivedMaps: DerivedEarthMaps | null = null;
+let cachedProceduralCloudTexture: THREE.CanvasTexture | null = null;
+
+function getProceduralCloudTexture(): THREE.CanvasTexture | null {
+  const tex = cachedProceduralCloudTexture ?? buildProceduralCloudTexture();
+  cachedProceduralCloudTexture = tex;
+  return tex;
+}
+
 /**
  * Generates an enhanced equirectangular Earth texture set from the staged NASA texture:
  * - Softens baked 1px lat/long graticule lines without blurring continental coastlines
@@ -376,28 +386,32 @@ function DistantMoon({
   const isPortrait = size.height > size.width;
   const moonRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
-  const [moonTexture, setMoonTexture] = useState<THREE.Texture | null>(null);
+  const [moonTexture, setMoonTexture] = useState<THREE.Texture | null>(
+    () => rawTextureCache.get('/textures/Moon_Flat.jpg') ?? null
+  );
 
   useEffect(() => {
+    const cached = rawTextureCache.get('/textures/Moon_Flat.jpg');
+    if (cached) {
+      return;
+    }
+
     let cancelled = false;
-    let loadedTex: THREE.Texture | null = null;
     const loader = new THREE.TextureLoader();
 
     loader.load(
       '/textures/Moon_Flat.jpg',
       (tex) => {
-        if (cancelled) {
-          tex.dispose();
-          return;
-        }
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.anisotropy = 8;
         tex.generateMipmaps = true;
         tex.minFilter = THREE.LinearMipmapLinearFilter;
         tex.magFilter = THREE.LinearFilter;
         tex.needsUpdate = true;
-        loadedTex = tex;
-        setMoonTexture(tex);
+        rawTextureCache.set('/textures/Moon_Flat.jpg', tex);
+        if (!cancelled) {
+          setMoonTexture(tex);
+        }
       },
       undefined,
       () => {
@@ -407,7 +421,6 @@ function DistantMoon({
 
     return () => {
       cancelled = true;
-      if (loadedTex) loadedTex.dispose();
     };
   }, []);
 
@@ -541,19 +554,31 @@ function PlanetCore({
   const cloudRef = useRef<THREE.Mesh>(null);
   const planetMatRef = useRef<THREE.MeshStandardMaterial>(null);
 
-  const [rawTexture, setRawTexture] = useState<THREE.Texture | null>(null);
-  const [earthMaps, setEarthMaps] = useState<DerivedEarthMaps | null>(null);
+  const initialTexUrl =
+    celestialBody === 'EARTH'
+      ? '/textures/EarthImage.jpg'
+      : celestialBody === 'MOON'
+        ? '/textures/Moon_Flat.jpg'
+        : null;
+
+  const [rawTexture, setRawTexture] = useState<THREE.Texture | null>(() =>
+    initialTexUrl ? (rawTextureCache.get(initialTexUrl) ?? null) : null
+  );
+  const [earthMaps, setEarthMaps] = useState<DerivedEarthMaps | null>(() => {
+    if (celestialBody !== 'EARTH') return null;
+    if (cachedEarthDerivedMaps) return cachedEarthDerivedMaps;
+    const cached = rawTextureCache.get('/textures/EarthImage.jpg');
+    if (cached && cached.image instanceof HTMLImageElement) {
+      cachedEarthDerivedMaps = buildEarthDerivedMaps(cached.image);
+      return cachedEarthDerivedMaps;
+    }
+    return null;
+  });
 
   const cloudTexture = useMemo(() => {
     if (celestialBody !== 'EARTH') return null;
-    return buildProceduralCloudTexture();
+    return getProceduralCloudTexture();
   }, [celestialBody]);
-
-  useEffect(() => {
-    return () => {
-      if (cloudTexture) cloudTexture.dispose();
-    };
-  }, [cloudTexture]);
 
   useEffect(() => {
     const texUrl =
@@ -567,36 +592,39 @@ function PlanetCore({
       return;
     }
 
+    const cachedRaw = rawTextureCache.get(texUrl);
+    if (cachedRaw) {
+      return;
+    }
+
     let cancelled = false;
-    let loadedRaw: THREE.Texture | null = null;
-    let derived: DerivedEarthMaps | null = null;
     const loader = new THREE.TextureLoader();
 
     loader.load(
       texUrl,
       (tex) => {
-        if (cancelled) {
-          tex.dispose();
-          return;
-        }
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.anisotropy = 8;
         tex.generateMipmaps = true;
         tex.minFilter = THREE.LinearMipmapLinearFilter;
         tex.magFilter = THREE.LinearFilter;
         tex.needsUpdate = true;
-        loadedRaw = tex;
+        rawTextureCache.set(texUrl, tex);
 
         if (celestialBody === 'EARTH' && tex.image instanceof HTMLImageElement) {
-          derived = buildEarthDerivedMaps(tex.image);
-          if (derived) {
-            setEarthMaps(derived);
-            setRawTexture(tex);
-            return;
+          if (!cachedEarthDerivedMaps) {
+            cachedEarthDerivedMaps = buildEarthDerivedMaps(tex.image);
           }
+          if (!cancelled) {
+            setEarthMaps(cachedEarthDerivedMaps);
+            setRawTexture(tex);
+          }
+          return;
         }
-        setEarthMaps(null);
-        setRawTexture(tex);
+        if (!cancelled) {
+          setEarthMaps(null);
+          setRawTexture(tex);
+        }
       },
       undefined,
       () => {
@@ -609,12 +637,6 @@ function PlanetCore({
 
     return () => {
       cancelled = true;
-      if (loadedRaw) loadedRaw.dispose();
-      if (derived) {
-        derived.colorMap.dispose();
-        derived.roughnessMap.dispose();
-        derived.bumpMap.dispose();
-      }
     };
   }, [celestialBody]);
 

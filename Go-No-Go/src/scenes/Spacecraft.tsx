@@ -19,23 +19,42 @@ interface TrianaJsonData {
   }[];
 }
 
+let cachedTrianaData: TrianaJsonData | null = null;
+let inflightTrianaPromise: Promise<TrianaJsonData> | null = null;
+
 function TrianaHeritageMesh({
   onStatusChange,
 }: {
   onStatusChange: (status: 'loading' | 'ready' | 'error') => void;
 }) {
-  const [data, setData] = useState<TrianaJsonData | null>(null);
+  const [data, setData] = useState<TrianaJsonData | null>(() => cachedTrianaData);
 
   useEffect(() => {
+    if (cachedTrianaData) {
+      onStatusChange('ready');
+      return;
+    }
+
     let cancelled = false;
     onStatusChange('loading');
 
-    fetch('/models/triana-spacecraft.json')
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((json: TrianaJsonData) => {
+    if (!inflightTrianaPromise) {
+      inflightTrianaPromise = fetch('/models/triana-spacecraft.json')
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json() as Promise<TrianaJsonData>;
+        })
+        .then((json) => {
+          cachedTrianaData = json;
+          return json;
+        })
+        .finally(() => {
+          inflightTrianaPromise = null;
+        });
+    }
+
+    inflightTrianaPromise
+      .then((json) => {
         if (!cancelled) {
           setData(json);
           onStatusChange('ready');

@@ -73,6 +73,31 @@ const FORM_FACTOR_RANK: Record<FormFactor, number> = {
 };
 
 /**
+ * Returns the launch vehicle's maximum throw mass (kg) for a given orbital regime.
+ */
+export function getLaunchCapacityForRegimeKg(
+  launchVehicle: LaunchVehicle,
+  orbitalRegime: string
+): number {
+  if (
+    orbitalRegime === 'GEO' ||
+    orbitalRegime === 'MOLNIYA' ||
+    orbitalRegime.includes('LUNAR') ||
+    orbitalRegime.includes('MARS') ||
+    orbitalRegime.includes('ASTEROID')
+  ) {
+    return launchVehicle.maxMassCislunarKg;
+  }
+  if (orbitalRegime === 'MEO') {
+    return Math.round((launchVehicle.maxMassSsoKg + launchVehicle.maxMassCislunarKg) / 2);
+  }
+  if (orbitalRegime.includes('SSO')) {
+    return launchVehicle.maxMassSsoKg;
+  }
+  return launchVehicle.maxMassLeoKg;
+}
+
+/**
  * Computes full Spacecraft Dry/Wet Mass Budget & Launch Mass Margin in SI units (kg).
  *
  * Units: All masses in kilograms (kg); margins in kg and %.
@@ -127,20 +152,7 @@ export function evaluateMassBudget(params: {
   }
 
   // Determine launch vehicle payload capacity strictly for the chosen destination orbit
-  let maxLaunchMassKg = launchVehicle.maxMassLeoKg;
-  if (
-    orbitalRegime === 'GEO' ||
-    orbitalRegime === 'MOLNIYA' ||
-    orbitalRegime.includes('LUNAR') ||
-    orbitalRegime.includes('MARS') ||
-    orbitalRegime.includes('ASTEROID')
-  ) {
-    maxLaunchMassKg = launchVehicle.maxMassCislunarKg;
-  } else if (orbitalRegime === 'MEO') {
-    maxLaunchMassKg = Math.round((launchVehicle.maxMassSsoKg + launchVehicle.maxMassCislunarKg) / 2);
-  } else if (orbitalRegime.includes('SSO')) {
-    maxLaunchMassKg = launchVehicle.maxMassSsoKg;
-  }
+  const maxLaunchMassKg = getLaunchCapacityForRegimeKg(launchVehicle, orbitalRegime);
 
   const busStructuralMarginKg = maxBusMassKg - wetMassKg;
   if (busStructuralMarginKg < 0) {

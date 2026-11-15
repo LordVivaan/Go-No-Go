@@ -8,7 +8,7 @@ import {
   type AdvisorPriority,
   type OptionalAiAdvisorResponse,
 } from '../engine/advisor';
-import { resolveMissionEntities, useMissionStore } from '../store/missionStore';
+import { useResolvedMission } from '../store/missionStore';
 
 function priorityBadge(priority: AdvisorPriority) {
   if (priority === 'CRITICAL') {
@@ -33,8 +33,7 @@ function priorityBadge(priority: AdvisorPriority) {
 }
 
 export function MissionAdvisorPanel() {
-  const missionState = useMissionStore();
-  const resolved = resolveMissionEntities(missionState);
+  const resolved = useResolvedMission();
   const report = generateMissionAdvisorReport(resolved);
   const aiConfigured = isOptionalAiProviderConfigured();
   const [aiResult, setAiResult] = useState<OptionalAiAdvisorResponse | null>(null);

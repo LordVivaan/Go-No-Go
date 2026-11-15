@@ -125,12 +125,46 @@ interface CachedTileJsonEntry {
   bounds?: [number, number, number, number];
 }
 
+const EO_USAGE_STORAGE_KEY = 'gng_eo_provenance_v1';
+
+function loadStoredEoUsage(): Map<string, EoDatasetUsageRecord> {
+  const map = new Map<string, EoDatasetUsageRecord>();
+  if (typeof window === 'undefined' || !window.sessionStorage) return map;
+  try {
+    const raw = window.sessionStorage.getItem(EO_USAGE_STORAGE_KEY);
+    if (!raw) return map;
+    const entries = JSON.parse(raw);
+    if (Array.isArray(entries)) {
+      for (const [k, v] of entries) {
+        if (typeof k === 'string' && v && typeof v === 'object') {
+          map.set(k, v as EoDatasetUsageRecord);
+        }
+      }
+    }
+  } catch {
+    // Gracefully ignore session storage read issues
+  }
+  return map;
+}
+
+function persistEoUsage(): void {
+  if (typeof window === 'undefined' || !window.sessionStorage) return;
+  try {
+    window.sessionStorage.setItem(
+      EO_USAGE_STORAGE_KEY,
+      JSON.stringify(Array.from(usageRecords.entries())),
+    );
+  } catch {
+    // Gracefully ignore session storage quota issues
+  }
+}
+
 const searchCache = new Map<string, CachedSearchEntry>();
 const tileJsonCache = new Map<string, CachedTileJsonEntry>();
 const inflightSearches = new Map<string, Promise<EoSceneAcquisition[]>>();
 const sasTokenCache = new Map<PlanetaryComputerCollectionId, SasTokenEntry>();
 const inflightSasTokens = new Map<PlanetaryComputerCollectionId, Promise<SasTokenEntry>>();
-const usageRecords = new Map<string, EoDatasetUsageRecord>();
+const usageRecords = loadStoredEoUsage();
 
 function setBoundedCache<K, V>(cache: Map<K, V>, key: K, value: V, maxEntries = MAX_CACHE_ENTRIES): void {
   if (cache.has(key)) {
@@ -166,6 +200,7 @@ export function recordEoDatasetUsage(record: EoDatasetUsageRecord): void {
     }
   }
   usageRecords.set(key, record);
+  persistEoUsage();
 }
 
 export function getRecordedEoDatasetUsage(): EoDatasetUsageRecord[] {
@@ -174,6 +209,13 @@ export function getRecordedEoDatasetUsage(): EoDatasetUsageRecord[] {
 
 export function clearRecordedEoDatasetUsage(): void {
   usageRecords.clear();
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      window.sessionStorage.removeItem(EO_USAGE_STORAGE_KEY);
+    } catch {
+      // Gracefully ignore session storage removal issues
+    }
+  }
 }
 
 /**

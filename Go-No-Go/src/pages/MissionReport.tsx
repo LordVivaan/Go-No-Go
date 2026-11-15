@@ -35,9 +35,8 @@ export function MissionReport() {
   const navigate = useNavigate();
   const difficulty = useMissionStore((s) => s.difficulty);
   const resetMissionForNewAttempt = useMissionStore((s) => s.resetMissionForNewAttempt);
-  const missionState = useMissionStore();
+  const configSignature = useMissionStore(getMissionConfigSignature);
   const { scenario, instruments, engineering, scorePreview } = useResolvedMission();
-  const configSignature = getMissionConfigSignature(missionState);
 
   const completedReport = useSimulationStore((s) => s.completedReport);
   const telemetryHistory = useSimulationStore((s) => s.telemetryHistory);

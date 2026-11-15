@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { ArrowLeft, ArrowRight, Layers, Sparkles } from 'lucide-react';
 import { SPACECRAFT_BUSES, SUBSYSTEM_COMPONENTS } from '../data/components';
 import { SCIENTIFIC_INSTRUMENTS } from '../data/instruments';
@@ -39,8 +39,21 @@ export function SpacecraftBuilder() {
   const applyPreset = useMissionStore((s) => s.applyPreset);
 
   const { scenario, bus, subsystems, instruments, engineering } = useResolvedMission();
-  const [activeTab, setActiveTab] = useState<BuilderTab>('BUS');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const categoryParam = searchParams.get('category');
+  const validTabParam = BUILDER_TABS.find((t) => t.id === categoryParam)?.id;
+  const [localTab, setLocalTab] = useState<BuilderTab>('BUS');
+  const activeTab = validTabParam ?? localTab;
   const [inspectOpen, setInspectOpen] = useState(false);
+
+  const handleSelectTab = (tabId: BuilderTab) => {
+    setLocalTab(tabId);
+    if (categoryParam) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('category');
+      setSearchParams(nextParams, { replace: true });
+    }
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6">
@@ -119,7 +132,7 @@ export function SpacecraftBuilder() {
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => handleSelectTab(tab.id)}
                     className={`shrink-0 rounded-full px-3.5 py-1.5 font-mono-tech text-[11px] font-semibold transition ${
                       active
                         ? 'bg-[#42D9F5] text-[#080B12]'

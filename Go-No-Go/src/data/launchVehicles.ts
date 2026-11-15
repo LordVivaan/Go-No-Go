@@ -1,0 +1,68 @@
+import type { LaunchVehicle } from '../types/spacecraft';
+
+export const LAUNCH_VEHICLES: LaunchVehicle[] = [
+  {
+    id: 'lv-ppod-rideshare',
+    name: '6U / 12U CubeSat Containerized Dispenser Rideshare',
+    provider: 'Exolaunch / ISISPACE Rideshare',
+    supportedFormFactors: ['1U', '3U', '6U'],
+    maxMassLeoKg: 24,
+    maxMassSsoKg: 20,
+    maxMassCislunarKg: 12,
+    fairingDiameterM: 0.35,
+    fairingHeightM: 0.45,
+    costMusd: 1.5,
+    reliability: 0.985,
+    injectionAccuracyMps: 25,
+    description:
+      'Ultra-low-cost containerized rideshare slot on a commercial Transporter mission. Restricted strictly to 1U–6U CubeSat form factors (<20 kg to SSO).',
+  },
+  {
+    id: 'lv-espa-rideshare',
+    name: 'ESPA-Grande Secondary Rideshare Port (Falcon 9 / Ariane 6 Class)',
+    provider: 'SpaceX Transporter / Arianespace',
+    supportedFormFactors: ['6U', 'SMALLSAT', 'ESPA'],
+    maxMassLeoKg: 320,
+    maxMassSsoKg: 260,
+    maxMassCislunarKg: 150,
+    fairingDiameterM: 1.5,
+    fairingHeightM: 2.2,
+    costMusd: 8.5,
+    reliability: 0.994,
+    injectionAccuracyMps: 18,
+    description:
+      'Standard 24-inch ESPA-Grande ring port. High reliability and affordable launch cost for 100–260 kg SmallSats.',
+  },
+  {
+    id: 'lv-dedicated-smallsat',
+    name: 'Dedicated SmallSat Orbital Launcher (Electron / Vega-C Class)',
+    provider: 'Rocket Lab / Avio',
+    supportedFormFactors: ['6U', 'SMALLSAT', 'ESPA'],
+    maxMassLeoKg: 450,
+    maxMassSsoKg: 340,
+    maxMassCislunarKg: 190,
+    fairingDiameterM: 1.8,
+    fairingHeightM: 3.2,
+    costMusd: 16.5,
+    reliability: 0.975,
+    injectionAccuracyMps: 12,
+    description:
+      'Dedicated orbital injection directly into your custom LTAN and altitude with rapid call-up launch readiness.',
+  },
+  {
+    id: 'lv-medium-eelv',
+    name: 'Medium-Lift Dedicated Observatory Vehicle (Falcon 9 / Vulcan Class)',
+    provider: 'SpaceX / ULA Launch Services',
+    supportedFormFactors: ['6U', 'SMALLSAT', 'ESPA'],
+    maxMassLeoKg: 4500,
+    maxMassSsoKg: 3200,
+    maxMassCislunarKg: 1800,
+    fairingDiameterM: 5.2,
+    fairingHeightM: 11.0,
+    costMusd: 58.0,
+    reliability: 0.996,
+    injectionAccuracyMps: 8,
+    description:
+      'Flagship-class medium-lift launcher capable of injecting heavy multi-instrument observatories into any Earth, Lunar, Martian, or Deep-Space trajectory.',
+  },
+];

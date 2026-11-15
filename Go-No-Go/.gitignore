@@ -1,0 +1,46 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies & build output
+node_modules
+dist
+dist-ssr
+*.tsbuildinfo
+
+# Environment & local secrets
+*.local
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
+*.pem
+*.key
+
+# Test & browser artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Cloudflare & local databases
+.wrangler/
+*.db
+*.sqlite
+*.sqlite3
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
